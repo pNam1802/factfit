@@ -1,0 +1,48 @@
+# --- Private: never commit ---
+PRD.md
+.env
+.env.*
+!.env.example
+data/profile.yaml
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+credentials*.json
+token*.json
+
+# --- Generated outputs ---
+output/
+outputs/
+*.pdf
+*.aux
+*.log
+*.out
+*.synctex.gz
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
