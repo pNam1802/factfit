@@ -109,3 +109,24 @@ def test_bad_date_format(tmp_path):
 def test_all_problems_reported_at_once(tmp_path):
     msgs = problems(tmp_path, text="Ran at 30 fps", evidence="b_missing")
     assert len(msgs) == 2
+
+
+def test_year_only_dates_and_certifications(tmp_path):
+    extra = """\
+education:
+  - {id: edu_u, school: Uni, degree: B.S., start: 2022, end: 2026}
+certifications:
+  - {id: cert_ml, name: Machine Learning Specialization, date: 2025}
+"""
+    profile = load(tmp_path, extra=extra)
+    assert profile.education[0].start == "2022"
+    assert profile.certifications[0].date == "2025"
+
+
+def test_certification_ids_are_checked_for_duplicates(tmp_path):
+    extra = """\
+certifications:
+  - {id: exp_a, name: Clash}
+"""
+    (msg,) = problems(tmp_path, extra=extra)
+    assert "duplicate id 'exp_a'" in msg

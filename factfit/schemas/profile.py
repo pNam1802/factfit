@@ -7,11 +7,17 @@ whole file (unique ids, skill evidence, numbers backed by metrics) live in
 
 from typing import Annotated, Literal
 
-from pydantic import Field, StringConstraints
+from pydantic import BeforeValidator, Field, StringConstraints
 
 from factfit.schemas.base import Strict
 
-YearMonth = Annotated[str, StringConstraints(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
+# "2026-03", or just "2026" when the month is not known (better than inventing one).
+# YAML reads a bare `2026` as a number, so turn numbers into text before checking.
+YearMonth = Annotated[
+    str,
+    BeforeValidator(lambda v: str(v) if isinstance(v, int) else v),
+    StringConstraints(pattern=r"^\d{4}(-(0[1-9]|1[0-2]))?$"),
+]
 Id = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]*$")]
 NonEmpty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -42,6 +48,7 @@ class SummaryVariant(Strict):
 
 class Basics(Strict):
     name: NonEmpty
+    headline: str | None = None  # line under the name, e.g. "AI Engineer Intern"
     email: NonEmpty
     phone: str | None = None
     location: str | None = None
@@ -103,6 +110,15 @@ class Award(Strict):
     bullets: list[Bullet] = []
 
 
+class Certification(Strict):
+    id: Id
+    name: NonEmpty
+    issuer: str | None = None
+    date: YearMonth | None = None
+    url: str | None = None
+    bullets: list[Bullet] = []
+
+
 class Profile(Strict):
     basics: Basics
     summary_variants: list[SummaryVariant] = []
@@ -112,3 +128,8 @@ class Profile(Strict):
     skills: list[Skill] = []
     publications: list[Publication] = []
     awards: list[Award] = []
+    certifications: list[Certification] = []
+
+
+# Profile fields whose entries have an id and a list of bullets.
+SECTIONS = ("experiences", "projects", "education", "publications", "awards", "certifications")

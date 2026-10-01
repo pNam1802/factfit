@@ -4,6 +4,7 @@ import argparse
 import sys
 
 from factfit.profile import ProfileError, load_profile
+from factfit.schemas.profile import SECTIONS
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -78,11 +79,7 @@ def _validate_profile(path: str) -> int:
             )
         return 1
 
-    bullets = sum(
-        len(entry.bullets)
-        for section in ("experiences", "projects", "education", "publications", "awards")
-        for entry in getattr(profile, section)
-    )
+    bullets = sum(len(entry.bullets) for section in SECTIONS for entry in getattr(profile, section))
     print(f"OK: {path} is valid ({bullets} bullets, {len(profile.skills)} skills).")
     return 0
 

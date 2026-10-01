@@ -10,7 +10,7 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-from factfit.schemas.profile import Bullet, Metric, Profile, SummaryVariant
+from factfit.schemas.profile import SECTIONS, Bullet, Metric, Profile, SummaryVariant
 from factfit.text.numbers import Lang, find_numbers
 
 Path = tuple[str | int, ...]
@@ -45,13 +45,11 @@ def check_rules(profile: Profile) -> list[Issue]:
 
 # --- walking the profile -------------------------------------------------------------------
 
-_SECTIONS = ("experiences", "projects", "education", "publications", "awards")
-
 
 def _items_with_text(profile: Profile) -> Iterator[tuple[Path, Bullet | SummaryVariant]]:
     for i, summary in enumerate(profile.summary_variants):
         yield ("summary_variants", i), summary
-    for section in _SECTIONS:
+    for section in SECTIONS:
         for i, entry in enumerate(getattr(profile, section)):
             for j, bullet in enumerate(entry.bullets):
                 yield (section, i, "bullets", j), bullet
@@ -60,7 +58,7 @@ def _items_with_text(profile: Profile) -> Iterator[tuple[Path, Bullet | SummaryV
 def _all_ids(profile: Profile) -> Iterator[tuple[Path, str]]:
     for i, summary in enumerate(profile.summary_variants):
         yield ("summary_variants", i, "id"), summary.id
-    for section in _SECTIONS:
+    for section in SECTIONS:
         for i, entry in enumerate(getattr(profile, section)):
             yield (section, i, "id"), entry.id
             for j, bullet in enumerate(entry.bullets):

@@ -49,7 +49,9 @@ def _friendly(err: dict) -> str:
         return err["msg"]
     field = next((p for p in reversed(err["loc"]) if isinstance(p, str)), "")
     if field in ("start", "end", "date"):
-        return "use a month in YYYY-MM form, e.g. 2026-03 (or 'present' for an end date)"
+        return (
+            "use YYYY-MM (e.g. 2026-03), or YYYY if the month is unknown; 'present' for an end date"
+        )
     if field in ("id", "evidence"):
         return "ids use lowercase letters, digits and underscores, starting with a letter"
     return err["msg"]
