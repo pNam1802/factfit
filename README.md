@@ -26,6 +26,19 @@ Tailoring a CV for each job takes 30–60 minutes by hand. Generic chatbots are 
 
 Python · LangGraph · FastAPI · Pydantic · SQLite · OpenAI API · Jinja2 + tectonic · Next.js + shadcn/ui
 
+## Development
+
+Requires [uv](https://docs.astral.sh/uv/).
+
+```bash
+uv sync                                   # install dependencies
+uv run pre-commit install                 # lint + secret scan on every commit
+uv run pytest                             # run tests
+
+cp data/profile.example.yaml data/profile.yaml   # your real profile (gitignored)
+uv run factfit validate-profile           # check it: unique ids, skill evidence, numbers backed by metrics
+```
+
 ## Roadmap
 
 - [ ] Week 1 — profile schema, LLM client, data model

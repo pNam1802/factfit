@@ -1,0 +1,87 @@
+# Example Master Profile. Everything here is made up.
+# Copy to data/profile.yaml (gitignored) and replace with your own, verified facts.
+#
+# Rules (checked by `factfit validate-profile`):
+#   - every id is unique in the file (lowercase, digits, underscores)
+#   - every skill lists at least one bullet id under `evidence`
+#   - every number in a text appears in that item's `metrics`, with verified: true
+#   - numbers inside technology names (YOLOv8, Python 3.11) are fine if the name is
+#     listed under the bullet's `skills` or the global `skills`
+
+basics:
+  name: Nguyen Van A
+  email: a@example.com
+  location: Hanoi, Vietnam
+  github: example-user
+  linkedin: linkedin.com/in/example-user
+
+summary_variants:
+  - id: sum_cv
+    tags: [computer-vision]
+    text: AI Engineer focused on real-time computer vision on edge devices.
+  - id: sum_llm
+    tags: [llm, agent]
+    text: AI Engineer building LLM agents with retrieval, structured output and evaluation.
+
+experiences:
+  - id: exp_acme
+    org: Acme Retail Tech
+    role: AI Engineer Intern
+    location: Hanoi
+    start: 2026-03
+    end: 2026-07
+    bullets:
+      - id: b_acme_01
+        text: Built a multi-camera people-tracking pipeline with YOLOv8 and ByteTrack running at 25 fps on a Jetson Orin.
+        text_vi: Xây dựng pipeline theo dõi người đa camera bằng YOLOv8 và ByteTrack, chạy 25 fps trên Jetson Orin.
+        tags: [cv, tracking, edge]
+        skills: [YOLOv8, ByteTrack, Python, Jetson Orin]
+        metrics:
+          - {name: throughput, value: 25, unit: fps, verified: true}
+      - id: b_acme_02
+        text: Contributed to a dashboard that reports store foot traffic for 3 pilot stores.
+        tags: [analytics]
+        skills: [FastAPI, PostgreSQL]
+        metrics:
+          - {name: pilot_stores, value: 3, verified: true}
+
+projects:
+  - id: prj_rag
+    name: Course Q&A Assistant
+    role: Solo project
+    url: github.com/example-user/course-qa
+    start: 2025-10
+    end: 2026-01
+    bullets:
+      - id: b_rag_01
+        text: Built a RAG chatbot over 1,200 lecture slides using hybrid search (BM25 + embeddings) and a reranker.
+        tags: [llm, rag]
+        skills: [Python, LangChain, Qdrant]
+        metrics:
+          - {name: slides_indexed, value: 1200, verified: true}
+      - id: b_rag_02
+        text: Raised answer accuracy from 62% to 81% on a 150-question test set by adding reranking.
+        tags: [llm, rag, evaluation]
+        skills: [Python]
+        metrics:
+          - {name: accuracy_before, value: 62, unit: "%", verified: true}
+          - {name: accuracy_after, value: 81, unit: "%", verified: true}
+          - {name: test_questions, value: 150, verified: true}
+
+education:
+  - id: edu_uni
+    school: Example University of Technology
+    degree: B.Sc. in Computer Science
+    start: 2022-09
+    end: 2026-06
+    gpa: 3.4/4.0
+
+skills:
+  - {name: Python, level: advanced, evidence: [b_acme_01, b_rag_01]}
+  - {name: YOLOv8, level: intermediate, evidence: [b_acme_01]}
+  - {name: FastAPI, level: intermediate, evidence: [b_acme_02]}
+  - {name: LangChain, level: beginner, evidence: [b_rag_01]}
+  - {name: Retrieval-Augmented Generation, level: intermediate, evidence: [b_rag_01, b_rag_02]}
+
+publications: []
+awards: []

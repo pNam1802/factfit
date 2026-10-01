@@ -1,0 +1,37 @@
+[project]
+name = "factfit"
+version = "0.1.0"
+description = "LangGraph agent that tailors LaTeX CVs to job descriptions, with every bullet traced to a verified profile."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Nguyễn Phương Nam" }]
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.13.5",
+    "pyyaml>=6.0.3",
+]
+
+[project.scripts]
+factfit = "factfit.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# E/F: errors, I: import order, B: likely bugs, UP: modern syntax, SIM: simplifications
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
