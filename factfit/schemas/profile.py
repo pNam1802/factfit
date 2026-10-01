@@ -7,16 +7,13 @@ whole file (unique ids, skill evidence, numbers backed by metrics) live in
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import Field, StringConstraints
+
+from factfit.schemas.base import Strict
 
 YearMonth = Annotated[str, StringConstraints(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
 Id = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]*$")]
 NonEmpty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-
-
-class Strict(BaseModel):
-    # Reject unknown fields so a typo like "metircs:" is reported instead of silently ignored.
-    model_config = ConfigDict(extra="forbid")
 
 
 class Metric(Strict):
