@@ -37,7 +37,14 @@ uv run pytest                             # run tests
 
 cp data/profile.example.yaml data/profile.yaml   # your real profile (gitignored)
 uv run factfit validate-profile           # check it: unique ids, skill evidence, numbers backed by metrics
+
+cp .env.example .env                      # add your OPENAI_API_KEY
+uv run factfit llm-check                  # one tiny request: checks key, model, cost logging
 ```
+
+Models per agent step and their prices live in [`config/llm.yaml`](config/llm.yaml). Every LLM call (tokens, cost, latency, errors) is logged to the `llm_calls` table in `data/factfit.db`.
+
+Set `FACTFIT_LLM_MODE=mock` to answer from saved fixtures in `evals/fixtures/` with no API key, or `record` to save real answers as fixtures. Only record with `profile.example.yaml`, since fixtures are committed.
 
 ## Roadmap
 

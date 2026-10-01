@@ -7,7 +7,9 @@ license = "MIT"
 authors = [{ name = "Nguyễn Phương Nam" }]
 requires-python = ">=3.11"
 dependencies = [
+    "openai>=3.22.1",
     "pydantic>=2.13.5",
+    "python-dotenv>=1.2.4",
     "pyyaml>=6.0.3",
     "sqlmodel>=0.0.47",
 ]

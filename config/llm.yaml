@@ -1,0 +1,25 @@
+# Which model each agent node uses, and what models cost.
+# Change models here, never in code. Check that a model works with: uv run factfit llm-check
+
+models:
+  small: gpt-5-mini # cheap and fast: parsing, matching, judging
+  large: gpt-5 # better writing: rewriting bullets
+
+nodes:
+  parse_jd: { model: small }
+  match: { model: small }
+  rewrite: { model: large }
+  judge: { model: small }
+  llm_check: { model: small }
+  # Optional per-node settings passed to the API, e.g.:
+  # rewrite: { model: large, reasoning_effort: medium }
+
+# USD per 1 million tokens. Copy the numbers from https://openai.com/api/pricing
+# and keep them up to date. A model missing here still works; its calls are
+# logged with cost_usd = null and `factfit llm-check` reminds you to add it.
+pricing: {}
+#  gpt-5-mini: { input: 0.00, output: 0.00 }
+#  gpt-5: { input: 0.00, output: 0.00 }
+
+max_retries: 2 # extra attempts after the first one fails
+timeout_s: 60

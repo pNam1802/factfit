@@ -125,7 +125,7 @@ class LLMCall(SQLModel, table=True):
     prompt_version: str
     tokens_in: int = 0
     tokens_out: int = 0
-    cost_usd: float = 0.0
+    cost_usd: float | None = None  # None when the model has no price in config/llm.yaml
     latency_ms: int = 0
     ok: bool = True
     error: str | None = None
