@@ -10,16 +10,23 @@ nodes:
   match: { model: small }
   rewrite: { model: large }
   judge: { model: small }
-  llm_check: { model: small }
+  llm_check: { model: small, reasoning_effort: minimal }
   # Optional per-node settings passed to the API, e.g.:
   # rewrite: { model: large, reasoning_effort: medium }
 
 # USD per 1 million tokens. Copy the numbers from https://openai.com/api/pricing
 # and keep them up to date. A model missing here still works; its calls are
 # logged with cost_usd = null and `factfit llm-check` reminds you to add it.
-pricing: {}
-#  gpt-5-mini: { input: 0.00, output: 0.00 }
-#  gpt-5: { input: 0.00, output: 0.00 }
+#
+# Standard (non-batch, non-cached) rates, collected 2026-10-01 from public price
+# trackers because openai.com/api/pricing blocks automated reads. Verify there.
+# Newer models are listed so they can be compared later (PRD §10.1); defaults stay on
+# gpt-5 / gpt-5-mini to keep a tailoring run under the $0.05 cost target.
+pricing:
+  gpt-5-mini: { input: 0.25, output: 2.00 }
+  gpt-5: { input: 1.25, output: 10.00 }
+  gpt-5.4-mini: { input: 0.75, output: 4.50 }
+  gpt-5.5: { input: 5.00, output: 30.00 }
 
 max_retries: 2 # extra attempts after the first one fails
 timeout_s: 60
