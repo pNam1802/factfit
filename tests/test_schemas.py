@@ -11,8 +11,10 @@ JD = {
     "seniority": "junior",
     "language": "en",
     "location": "Hanoi",
-    "must_have": [{"id": "r1", "text": "Python", "category": "skill"}],
-    "nice_to_have": [{"id": "r2", "text": "LangGraph", "category": "skill"}],
+    "must_have": [{"id": "r1", "text": "Python", "category": "skill", "any_of": [], "level": None}],
+    "nice_to_have": [
+        {"id": "r2", "text": "LangGraph", "category": "skill", "any_of": [], "level": None}
+    ],
     "responsibilities": ["Build LLM agents"],
     "keywords": ["RAG", "agent"],
 }
@@ -24,7 +26,12 @@ def test_job_description_valid():
 
 
 def test_job_description_rejects_repeated_requirement_ids():
-    bad = {**JD, "nice_to_have": [{"id": "r1", "text": "LangGraph", "category": "skill"}]}
+    bad = {
+        **JD,
+        "nice_to_have": [
+            {"id": "r1", "text": "LangGraph", "category": "skill", "any_of": [], "level": None}
+        ],
+    }
     with pytest.raises(ValidationError, match="repeated"):
         JobDescription.model_validate(bad)
 

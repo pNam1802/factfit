@@ -31,15 +31,22 @@ VALID_JD = json.dumps(
         "seniority": "junior",
         "language": "en",
         "location": None,
-        "must_have": [{"id": "r1", "text": "Python", "category": "skill"}],
+        "must_have": [
+            {"id": "r1", "text": "Python", "category": "skill", "any_of": [], "level": None}
+        ],
         "nice_to_have": [],
         "responsibilities": [],
         "keywords": [],
     }
 )
 # Valid JSON shape, but breaks our own rule: requirement ids must be unique.
-DUPLICATE_IDS_JD = VALID_JD.replace(
-    '"nice_to_have": []', '"nice_to_have": [{"id": "r1", "text": "Go", "category": "skill"}]'
+DUPLICATE_IDS_JD = json.dumps(
+    {
+        **json.loads(VALID_JD),
+        "nice_to_have": [
+            {"id": "r1", "text": "Go", "category": "skill", "any_of": [], "level": None}
+        ],
+    }
 )
 
 

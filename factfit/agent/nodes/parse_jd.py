@@ -9,12 +9,13 @@ import hashlib
 import re
 from dataclasses import dataclass
 
+from pydantic import ValidationError
 from sqlalchemy import func
 from sqlmodel import Session, select
 
 from factfit.db.models import Company, Job
 from factfit.llm import LLMClient
-from factfit.prompts import load_prompt
+from factfit.prompts import Prompt, load_prompt
 from factfit.schemas.job import JobDescription
 
 NODE = "parse_jd"
@@ -37,6 +38,33 @@ def jd_hash(text: str) -> str:
     return hashlib.sha256(normalize_jd(text).encode()).hexdigest()
 
 
+def extract_jd(
+    text: str,
+    *,
+    client: LLMClient,
+    prompt: Prompt,
+    company: str | None = None,
+    run_id: str | None = None,
+) -> JobDescription:
+    """The LLM call alone, without database or cache. Also used by the evaluation."""
+    return client.parse(
+        JobDescription,
+        node=NODE,
+        prompt_version=prompt.id,
+        system=prompt.system,
+        user=prompt.render(company=company or "", jd_text=normalize_jd(text)),
+        run_id=run_id,
+    )
+
+
+def _from_cache(parsed_json: dict) -> JobDescription | None:
+    # Results saved under an older schema no longer validate: parse again instead of failing.
+    try:
+        return JobDescription.model_validate(parsed_json)
+    except ValidationError:
+        return None
+
+
 def parse_jd(
     raw_text: str,
     *,
@@ -55,16 +83,11 @@ def parse_jd(
 
     job = session.exec(select(Job).where(Job.text_hash == text_hash)).first()
     if job and job.parsed_json and job.parse_prompt_version == prompt.id:
-        return ParseResult(job=job, jd=JobDescription.model_validate(job.parsed_json), cached=True)
+        cached = _from_cache(job.parsed_json)
+        if cached is not None:
+            return ParseResult(job=job, jd=cached, cached=True)
 
-    jd = client.parse(
-        JobDescription,
-        node=NODE,
-        prompt_version=prompt.id,
-        system=prompt.system,
-        user=prompt.render(company=company or "", jd_text=text),
-        run_id=run_id,
-    )
+    jd = extract_jd(text, client=client, prompt=prompt, company=company, run_id=run_id)
 
     if job is None:
         job = Job(raw_text=raw_text, text_hash=text_hash, title=jd.title, source=source)

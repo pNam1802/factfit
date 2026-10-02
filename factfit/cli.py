@@ -21,6 +21,15 @@ def main(argv: list[str] | None = None) -> int:
     parse.add_argument("path", help="text file with the job description")
     parse.add_argument("--company", help="company name, if the JD does not say")
     parse.add_argument("--url", help="where the JD was posted")
+    ev = commands.add_parser("eval-parse", help="score parse_jd against hand labels")
+    ev.add_argument("--split", default="dev", help="folder under evals/jds/ (dev or holdout)")
+    ev.add_argument("--prompts", nargs="+", default=["v1"], help="prompt versions to compare")
+    ev.add_argument(
+        "--efforts",
+        nargs="+",
+        default=["default"],
+        help="reasoning efforts to compare: default, minimal, low, medium, high",
+    )
     args = parser.parse_args(argv)
 
     if args.command == "validate-profile":
@@ -29,7 +38,57 @@ def main(argv: list[str] | None = None) -> int:
         return _llm_check()
     if args.command == "parse-jd":
         return _parse_jd(args.path, args.company, args.url)
+    if args.command == "eval-parse":
+        return _eval_parse(args.split, args.prompts, args.efforts)
     return 2
+
+
+def _eval_parse(split: str, prompts: list[str], efforts: list[str]) -> int:
+    import json
+    from datetime import datetime
+    from pathlib import Path
+
+    from factfit.evals import parse_eval as pe
+    from factfit.llm import LLMError, make_client
+
+    cases = pe.load_cases(split)
+    if not cases:
+        print(f"No labelled job descriptions in {pe.JDS_DIR / split} (need <name>.labels.yaml).")
+        return 1
+    variants = [
+        pe.Variant(prompt=p, effort=None if e == "default" else e) for p in prompts for e in efforts
+    ]
+    try:
+        client = make_client()
+    except LLMError as e:
+        print(f"FAILED: {e}")
+        return 1
+
+    print(f"{len(cases)} job descriptions x {len(variants)} variants...")
+    results = pe.run(
+        cases, variants, backend=client.backend, base_config=client.config, progress=print
+    )
+
+    def pct(x):
+        return "  -  " if x is None else f"{x:5.0%}"
+
+    header = f"\n{'variant':<14}{'prec':>6}{'recall':>8}{'bucket':>8}{'any_of':>8}{'level':>7}"
+    print(header + f"{'reqs/JD':>9}{'$/JD':>9}{'s/JD':>7}{'fail':>6}")
+    for r in results:
+        m, s, t = r.totals().metrics(), r.parse_stats(), r.totals()
+        cost = "  ?" if s["cost_per_jd"] is None else f"{s['cost_per_jd']:.4f}"
+        ok = len(r.cases) - s["failed"] or 1
+        print(
+            f"{r.variant.label:<14}{pct(m['precision']):>6}{pct(m['recall']):>8}"
+            f"{pct(m['bucket']):>8}{pct(m['any_of']):>8}{pct(m['level']):>7}"
+            f"{t.predicted / ok:>9.1f}{cost:>9}{s['latency_s_per_jd']:>7.1f}{s['failed']:>6}"
+        )
+
+    out = Path("evals/results") / f"parse-{split}-{datetime.now():%Y%m%d-%H%M%S}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(pe.to_json(results), ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\nFull results (per JD, with predictions): {out}")
+    return 0
 
 
 def _parse_jd(path: str, company: str | None, url: str | None) -> int:

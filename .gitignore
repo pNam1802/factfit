@@ -50,3 +50,6 @@ Thumbs.db
 
 # --- Real job descriptions and hand labels: company content, may hold recruiter contacts ---
 evals/jds/
+
+# --- Evaluation outputs: contain parsed text of private job descriptions ---
+evals/results/

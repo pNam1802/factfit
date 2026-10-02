@@ -6,11 +6,12 @@ models:
   large: gpt-5 # better writing: rewriting bullets
 
 nodes:
-  parse_jd: { model: small, prompt: v1 }
+  parse_jd: { model: small, prompt: v2, reasoning_effort: low } # chosen by eval-parse, 2026-10-02
   match: { model: small }
   rewrite: { model: large }
   judge: { model: small }
   llm_check: { model: small, reasoning_effort: minimal }
+  eval_align: { model: small, prompt: v1, reasoning_effort: low } # judge for factfit eval-parse
   # Optional per-node settings passed to the API, e.g.:
   # rewrite: { model: large, reasoning_effort: medium }
 

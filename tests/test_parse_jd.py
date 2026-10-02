@@ -24,9 +24,23 @@ ANSWER = json.dumps(
         "seniority": "intern",
         "language": "vi",
         "location": "Hà Nội",
-        "must_have": [{"id": "r1", "text": "Thành thạo Python", "category": "skill"}],
+        "must_have": [
+            {
+                "id": "r1",
+                "text": "Thành thạo Python",
+                "category": "skill",
+                "any_of": [],
+                "level": None,
+            }
+        ],
         "nice_to_have": [
-            {"id": "r2", "text": "Kinh nghiệm triển khai REST API", "category": "experience"}
+            {
+                "id": "r2",
+                "text": "Kinh nghiệm triển khai REST API",
+                "category": "experience",
+                "any_of": [],
+                "level": None,
+            }
         ],
         "responsibilities": ["Phát triển giải pháp LLM"],
         "keywords": ["Python", "REST API"],
