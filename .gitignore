@@ -6,6 +6,7 @@ PRD.md
 data/profile.yaml
 *.db
 *.db-journal
+*.bak
 *.sqlite
 *.sqlite3
 credentials*.json
@@ -46,3 +47,6 @@ next-env.d.ts
 .idea/
 .DS_Store
 Thumbs.db
+
+# --- Real job descriptions and hand labels: company content, may hold recruiter contacts ---
+evals/jds/

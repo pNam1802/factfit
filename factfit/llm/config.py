@@ -18,6 +18,7 @@ class Price(Strict):
 
 class NodeSettings(Strict):
     model: str  # an alias from `models` or a model name
+    prompt: str = "v1"  # which prompts/<node>/<prompt>.md to use
     reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
 
 
@@ -33,6 +34,10 @@ class LLMConfig(Strict):
             raise KeyError(f"node '{node}' has no entry under `nodes` in config/llm.yaml")
         name = self.nodes[node].model
         return self.models.get(name, name)
+
+    def prompt_for(self, node: str) -> str:
+        self.model_for(node)  # same clear error for an unknown node
+        return self.nodes[node].prompt
 
     def api_options(self, node: str) -> dict:
         """Extra arguments for the API call, only those that are set."""

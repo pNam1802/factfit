@@ -6,7 +6,7 @@ models:
   large: gpt-5 # better writing: rewriting bullets
 
 nodes:
-  parse_jd: { model: small }
+  parse_jd: { model: small, prompt: v1 }
   match: { model: small }
   rewrite: { model: large }
   judge: { model: small }

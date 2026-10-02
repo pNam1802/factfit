@@ -50,6 +50,8 @@ class Job(SQLModel, table=True):
     source: str = "manual"  # where the JD came from: manual paste, a job site, ...
     raw_text: str
     parsed_json: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    # Prompt that produced parsed_json, e.g. "parse_jd/v1". A new prompt version re-parses.
+    parse_prompt_version: str | None = None
     # Hash of the normalised JD text: same JD pasted twice -> reuse the cached parse.
     text_hash: str = Field(index=True)
     created_at: datetime = Field(default_factory=_now)
