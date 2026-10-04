@@ -21,11 +21,13 @@ from typing import Literal
 import yaml
 
 from factfit.schemas.profile import Bullet
-from factfit.text.numbers import find_numbers
+from factfit.text.numbers import find_numbers, guess_lang
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 # A source with no listed role verb is treated as plain hands-on work.
 DEFAULT_SOURCE_LEVEL = 2
+CAUSAL_VERBS = {"lead", "led", "leading"}  # ignored when followed by "to"
+_NEXT_IS_TO = re.compile(r"\s+to\b", re.IGNORECASE)
 
 IssueKind = Literal["no_source", "number_unsupported", "tech_unsupported", "role_inflated"]
 
@@ -110,11 +112,12 @@ def check_numbers(new_text: str, sources: list[Bullet], kb: KnowledgeBase) -> li
     mask = [*kb.tech_names, *(s for b in sources for s in b.skills)]
     allowed: set[float] = {m.value for b in sources for m in b.metrics}
     for b in sources:
-        for mention in find_numbers(b.text, mask=mask):
+        for mention in find_numbers(b.text, lang=guess_lang(b.text), mask=mask):
             allowed |= mention.values
 
     issues = []
-    for mention in find_numbers(new_text, mask=mask):
+    # "2.000" is two thousand in Vietnamese and two in English.
+    for mention in find_numbers(new_text, lang=guess_lang(new_text), mask=mask):
         if not any(abs(v - a) < 1e-9 for v in mention.values for a in allowed):
             issues.append(
                 GroundingIssue(
@@ -151,7 +154,12 @@ def role_level(text: str, kb: KnowledgeBase) -> tuple[str, int] | None:
     deployed with Docker" the role is "contributed", while "deployed" describes the tracker.
     "Designed" or "led" anywhere is a role claim, so those always count.
     """
-    found = kb.verbs.find(text)
+    found = [
+        (m.group(1), kb.verbs.lookup[m.group(1).casefold()])
+        for m in kb.verbs.pattern.finditer(text)
+        # "led to faster responses" states a cause, not leadership
+        if not (m.group(1).casefold() in CAUSAL_VERBS and _NEXT_IS_TO.match(text, m.end()))
+    ]
     if not found:
         return None
     claims = [found[0], *(pair for pair in found if pair[1] >= 3)]

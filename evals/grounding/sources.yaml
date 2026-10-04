@@ -1,0 +1,136 @@
+# Source bullets for the grounding test set (PRD §8.3). Fictional, written for this test set,
+# so the set can be public. Each test case pairs one of these with a rewritten bullet.
+# Varied on purpose: domains, role levels (assisted ... led), with and without numbers,
+# English and Vietnamese.
+
+- id: s01
+  text: Built a multi-camera people-tracking pipeline with YOLOv8 and ByteTrack running at 25 fps on a Jetson Orin
+  skills: [YOLOv8, ByteTrack, Jetson Orin, Python]
+  metrics: [{name: fps, value: 25, unit: fps, verified: true}]
+- id: s02
+  text: Contributed to a dashboard that reports store foot traffic for 3 pilot stores
+  skills: [FastAPI, PostgreSQL]
+  metrics: [{name: stores, value: 3, verified: true}]
+- id: s03
+  text: Built a RAG chatbot over 1,200 lecture slides using hybrid search (BM25 + embeddings) and a reranker
+  skills: [Python, LangChain, Qdrant, BM25]
+  metrics: [{name: slides, value: 1200, verified: true}]
+- id: s04
+  text: Raised answer accuracy from 62% to 81% on a 150-question test set by adding reranking
+  skills: [Python]
+  metrics:
+    - {name: accuracy_before, value: 62, unit: "%", verified: true}
+    - {name: accuracy_after, value: 81, unit: "%", verified: true}
+    - {name: questions, value: 150, verified: true}
+- id: s05
+  text: Assisted the data team in labeling 4,000 product images for a defect classifier
+  skills: [Label Studio]
+  metrics: [{name: images, value: 4000, verified: true}]
+- id: s06
+  text: Trained an EfficientNetB0 classifier in PyTorch that reached 93% accuracy on a held-out set
+  skills: [PyTorch, EfficientNetB0]
+  metrics: [{name: accuracy, value: 93, unit: "%", verified: true}]
+- id: s07
+  text: Implemented a FastAPI service that serves an OCR model behind a REST API
+  skills: [FastAPI, PaddleOCR, REST API, Python]
+- id: s08
+  text: Designed the data schema for a job-application tracker in SQLite
+  skills: [SQLite, SQL]
+- id: s09
+  text: Led a team of 4 students to build a Vietnamese speech-to-text demo with Whisper
+  skills: [Whisper, Python]
+  metrics: [{name: team_size, value: 4, verified: true}]
+- id: s10
+  text: Wrote unit tests with pytest for a data-cleaning library, raising coverage to 85%
+  skills: [pytest, Python]
+  metrics: [{name: coverage, value: 85, unit: "%", verified: true}]
+- id: s11
+  text: Fine-tuned a small LLM with LoRA on 2,000 customer-support conversations
+  skills: [LoRA, Hugging Face, PyTorch]
+  metrics: [{name: conversations, value: 2000, verified: true}]
+- id: s12
+  text: Participated in code reviews for a Flask backend used by an internal HR tool
+  skills: [Flask, Python]
+- id: s13
+  text: Reduced inference latency from 120 ms to 45 ms by exporting the detector to ONNX Runtime
+  skills: [ONNX Runtime, ONNX]
+  metrics:
+    - {name: latency_before, value: 120, unit: ms, verified: true}
+    - {name: latency_after, value: 45, unit: ms, verified: true}
+- id: s14
+  text: Developed a LangGraph agent with 6 nodes that drafts replies to customer emails
+  skills: [LangGraph, OpenAI API, Python]
+  metrics: [{name: nodes, value: 6, verified: true}]
+- id: s15
+  text: Collected and cleaned 10k news articles for a Vietnamese topic classifier
+  skills: [Python, Pandas]
+  metrics: [{name: articles, value: 10000, verified: true}]
+- id: s16
+  text: Supported the MLOps engineer in setting up experiment tracking with MLflow
+  skills: [MLflow]
+- id: s17
+  text: Deployed a Streamlit demo of a face-verification model using InsightFace
+  skills: [Streamlit, InsightFace]
+- id: s18
+  text: Architected an event pipeline that moves click logs from Kafka into PostgreSQL every 5 minutes
+  skills: [Kafka, PostgreSQL]
+  metrics: [{name: interval_minutes, value: 5, unit: min, verified: true}]
+- id: s19
+  text: Integrated the Gemini API with structured outputs to extract fields from invoices
+  skills: [Gemini API, Python]
+- id: s20
+  text: Evaluated 3 embedding models on a 500-query retrieval benchmark
+  skills: [Python, FAISS]
+  metrics:
+    - {name: models, value: 3, verified: true}
+    - {name: queries, value: 500, verified: true}
+- id: s21
+  text: Containerized a training job with Docker so teammates could reproduce results
+  skills: [Docker]
+- id: s22
+  text: Helped migrate a cron-based scraper to Airflow DAGs
+  skills: [Airflow, Python]
+- id: s23
+  text: Optimized SQL queries for a reporting page, cutting load time from 8 s to 2 s
+  skills: [SQL, PostgreSQL]
+  metrics:
+    - {name: load_before, value: 8, unit: s, verified: true}
+    - {name: load_after, value: 2, unit: s, verified: true}
+- id: s24
+  text: Mentored 2 first-year interns on Git workflows and code style
+  skills: [Git]
+  metrics: [{name: interns, value: 2, verified: true}]
+- id: s25
+  text: Built a traffic-light violation detector with YOLOv8 and DeepSORT on recorded street video
+  skills: [YOLOv8, DeepSORT, OpenCV]
+- id: s26
+  text: Created a golden set of 120 question-answer pairs to evaluate an internal chatbot
+  skills: [LLM Evaluation]
+  metrics: [{name: pairs, value: 120, verified: true}]
+- id: s27
+  text: Took part in a hackathon team that prototyped a Next.js front end for a recipe recommender
+  skills: [Next.js, React]
+- id: s28
+  text: Wrote a Bash script that backs up the lab's PostgreSQL database every night
+  skills: [Bash, PostgreSQL]
+- id: s29
+  text: Built a Redis cache in front of a search API, raising cache hit rate to 70%
+  skills: [Redis]
+  metrics: [{name: hit_rate, value: 70, unit: "%", verified: true}]
+- id: s30
+  text: Analyzed churn data in Pandas and presented 5 findings to the product team
+  skills: [Pandas, Python]
+  metrics: [{name: findings, value: 5, verified: true}]
+- id: s31
+  text: Xây dựng pipeline nhận diện biển số xe bằng YOLOv8 và PaddleOCR
+  skills: [YOLOv8, PaddleOCR]
+- id: s32
+  text: Tham gia phát triển chatbot hỗ trợ sinh viên dùng LangChain và OpenAI API
+  skills: [LangChain, OpenAI API]
+- id: s33
+  text: Thiết kế cơ sở dữ liệu PostgreSQL cho hệ thống đặt lịch phòng khám
+  skills: [PostgreSQL]
+- id: s34
+  text: Hỗ trợ gán nhãn 2.000 ảnh X-quang cho bài toán phân loại
+  skills: [Label Studio]
+  metrics: [{name: images, value: 2000, verified: true}]

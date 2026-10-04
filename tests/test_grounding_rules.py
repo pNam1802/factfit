@@ -143,3 +143,29 @@ def test_leadership_later_in_the_bullet_still_counts():
         "role_inflated",
         "led",
     )
+
+
+def test_vietnamese_thousands_separator():
+    source = Bullet.model_validate(
+        {
+            "id": "b7",
+            "text": "Hỗ trợ gán nhãn 2.000 ảnh X-quang",
+            "metrics": [{"name": "images", "value": 2000, "verified": True}],
+        }
+    )
+    assert kinds("Hỗ trợ gán nhãn 2.000 ảnh X-quang cho bài toán phân loại", [source]) == []
+    assert kinds("Hỗ trợ gán nhãn 2.500 ảnh X-quang", [source]) == [("number_unsupported", "2.500")]
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    ["leading to faster replies", "which led to fewer errors", "drove adoption across teams"],
+)
+def test_causal_phrases_are_not_role_claims(outcome):
+    # Found by the grounding test set: these state a result, not who led the work.
+    issues = kinds(f"Contributed to a multi-camera tracking pipeline, {outcome}")
+    assert not [i for i in issues if i[0] == "role_inflated"]
+
+
+def test_led_a_team_is_still_a_role_claim():
+    assert kinds("Led a team to build a tracking pipeline")[0][0] == "role_inflated"

@@ -48,6 +48,14 @@ class NumberMention:
     values: frozenset[float]  # every value this mention may stand for, e.g. {1.0, 1000.0}
 
 
+_VIETNAMESE = re.compile("[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]", re.IGNORECASE)
+
+
+def guess_lang(text: str) -> Lang:
+    """ "vi" if the text uses letters only Vietnamese has, else "en"."""
+    return "vi" if _VIETNAMESE.search(text) else "en"
+
+
 def parse_number(raw: str, lang: Lang = "en") -> float:
     """Turn "1,000" / "0,85" / "1.000" / "3.11" into a float.
 

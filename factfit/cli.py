@@ -48,6 +48,12 @@ def main(argv: list[str] | None = None) -> int:
     cb.add_argument("--source", action="append", required=True, help="source bullet id (repeat)")
     cb.add_argument("--text", required=True, help="the rewritten bullet")
     cb.add_argument("--profile", help="default: $FACTFIT_PROFILE or data/profile.yaml")
+    commands.add_parser(
+        "build-grounding-cases",
+        help="(re)build evals/grounding/cases.jsonl; overwrites it, review the result after",
+    )
+    eg = commands.add_parser("eval-grounding", help="score grounding checks on the test set")
+    eg.add_argument("--show-misses", action="store_true", help="print every missed case")
     args = parser.parse_args(argv)
 
     if args.command == "validate-profile":
@@ -64,6 +70,10 @@ def main(argv: list[str] | None = None) -> int:
         from factfit.devserver import run_dev
 
         return run_dev(api_port=args.api_port, ui_port=args.ui_port)
+    if args.command == "build-grounding-cases":
+        return _build_grounding_cases()
+    if args.command == "eval-grounding":
+        return _eval_grounding(args.show_misses)
     if args.command == "check-bullet":
         return _check_bullet(args.source, args.text, args.profile)
     if args.command == "export-openapi":
@@ -73,6 +83,68 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Wrote {args.path}. Regenerate UI types with: cd ui && npm run gen:api")
         return 0
     return 2
+
+
+def _build_grounding_cases() -> int:
+    from collections import Counter
+
+    from factfit.evals import grounding_cases as gc
+    from factfit.llm import LLMError, make_client
+
+    sources = gc.load_sources()
+    code = gc.code_mutations(sources)
+    try:
+        llm = gc.llm_variants(sources, make_client())
+    except LLMError as e:
+        print(f"FAILED: {e}")
+        return 1
+
+    # Words-only fabrications that also changed numbers, tech or role test the wrong thing.
+    kept = []
+    for case in llm:
+        problems = gc.impure(case, sources) if case.label == "fabricated" else []
+        if problems:
+            print(f"dropped impure {case.mutation_type} for {case.source_ids[0]}: {problems}")
+        else:
+            kept.append(case)
+
+    cases = gc.number_ids(code + kept)
+    gc.save_cases(cases)
+    counts = Counter(c.mutation_type for c in cases)
+    print(f"\nWrote {len(cases)} cases to evals/grounding/cases.jsonl:")
+    for kind, n in counts.items():
+        print(f"  {kind:<22}{n}")
+    print("\nNext: review the llm cases (labels must be right), then run factfit eval-grounding.")
+    return 0
+
+
+def _eval_grounding(show_misses: bool) -> int:
+    from factfit.evals import grounding_cases as gc
+    from factfit.evals import grounding_eval as ge
+
+    sources = gc.load_sources()
+    cases = gc.load_cases()
+    results = ge.evaluate(cases, sources, ge.rules_checker)
+
+    print(f"Grounding test set: {len(cases)} cases, checker: rules (code only)\n")
+    print(f"{'type':<22}{'label':<12}{'n':>4}{'flagged':>9}{'rate':>7}   95% interval")
+    for r in results:
+        lo, hi = r.interval or (0, 0)
+        print(
+            f"{r.mutation_type:<22}{r.label:<12}{r.n:>4}{r.flagged:>9}{r.rate:>7.0%}"
+            f"   {lo:.0%} - {hi:.0%}"
+        )
+    s = ge.summary(results)
+    print(f"\nRecall on all fabricated cases: {s['recall']:.0%}")
+    print(f"False positives on valid paraphrases: {s['false_positive_rate']:.0%}")
+    print("(recall = flagged share of fabricated cases; for valid paraphrases, flagged = wrong)")
+
+    if show_misses:
+        for r in results:
+            for case in r.misses:
+                src = " | ".join(sources[s].text for s in case.source_ids)
+                print(f"\n[{r.mutation_type}] {case.id}\n  source:  {src}\n  rewrite: {case.text}")
+    return 0
 
 
 def _check_bullet(source_ids: list[str], text: str, profile_path: str | None) -> int:

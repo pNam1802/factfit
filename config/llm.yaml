@@ -12,6 +12,7 @@ nodes:
   judge: { model: small }
   llm_check: { model: small, reasoning_effort: minimal }
   eval_align: { model: small, prompt: v1, reasoning_effort: low } # judge for factfit eval-parse
+  gen_cases: { model: small, prompt: v1, reasoning_effort: low } # writes grounding test cases
   # Optional per-node settings passed to the API, e.g.:
   # rewrite: { model: large, reasoning_effort: medium }
 

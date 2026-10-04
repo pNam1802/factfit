@@ -4,7 +4,9 @@
 #
 # Matching ignores case and needs whole words. Left out on purpose, because they also appear
 # in technical phrases: "supervised" (supervised learning), "directed" (directed graph),
-# "quản lý" (hệ thống quản lý), "hướng dẫn" (a guide), "phụ trách" (ambiguous).
+# "quản lý" (hệ thống quản lý), "hướng dẫn" (a guide), "phụ trách" (ambiguous), "drove" and
+# "driving" ("drove adoption" is an outcome, not a role). "led to" / "leading to" is cause,
+# not leadership: the checker ignores lead/led/leading followed by "to".
 
 1:
   en: [assisted, assisting, supported, supporting, helped, helping, contributed to, contributed,
@@ -17,7 +19,7 @@
        optimised, improved, reduced, migrated, analyzed, analysed, evaluated]
   vi: [xây dựng, triển khai, phát triển, huấn luyện, tích hợp, cài đặt, tối ưu, cải thiện]
 3:
-  en: [designed, designing, architected, architecting, owned, owning, drove, driving,
+  en: [designed, designing, architected, architecting, owned, owning,
        established, founded]
   vi: [thiết kế, chịu trách nhiệm chính, làm chủ]
 4:
