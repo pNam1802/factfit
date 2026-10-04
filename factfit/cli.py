@@ -44,6 +44,10 @@ def main(argv: list[str] | None = None) -> int:
     dev.add_argument("--ui-port", type=int, default=3000)
     oa = commands.add_parser("export-openapi", help="write the API schema for the UI types")
     oa.add_argument("path", nargs="?", default="ui/openapi.json")
+    cb = commands.add_parser("check-bullet", help="check a rewritten bullet against its sources")
+    cb.add_argument("--source", action="append", required=True, help="source bullet id (repeat)")
+    cb.add_argument("--text", required=True, help="the rewritten bullet")
+    cb.add_argument("--profile", help="default: $FACTFIT_PROFILE or data/profile.yaml")
     args = parser.parse_args(argv)
 
     if args.command == "validate-profile":
@@ -60,6 +64,8 @@ def main(argv: list[str] | None = None) -> int:
         from factfit.devserver import run_dev
 
         return run_dev(api_port=args.api_port, ui_port=args.ui_port)
+    if args.command == "check-bullet":
+        return _check_bullet(args.source, args.text, args.profile)
     if args.command == "export-openapi":
         from factfit.api.app import export_openapi
 
@@ -67,6 +73,42 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Wrote {args.path}. Regenerate UI types with: cd ui && npm run gen:api")
         return 0
     return 2
+
+
+def _check_bullet(source_ids: list[str], text: str, profile_path: str | None) -> int:
+    import os
+
+    from dotenv import load_dotenv
+
+    from factfit.grounding import check_bullet
+    from factfit.profile import ProfileError, load_profile
+
+    load_dotenv()
+    path = profile_path or os.environ.get("FACTFIT_PROFILE", "data/profile.yaml")
+    try:
+        profile = load_profile(path)
+    except (ProfileError, FileNotFoundError):
+        print(f"{path} is missing or not valid. Run: uv run factfit validate-profile {path}")
+        return 1
+
+    bullets = {b.id: b for s in SECTIONS for e in getattr(profile, s) for b in e.bullets}
+    unknown = [i for i in source_ids if i not in bullets]
+    if unknown:
+        print(f"Unknown bullet id(s) in {path}: {', '.join(unknown)}")
+        return 1
+    sources = [bullets[i] for i in source_ids]
+
+    for b in sources:
+        print(f"source {b.id}: {b.text}")
+    print(f"rewrite:   {text}\n")
+    issues = check_bullet(text, sources)
+    if not issues:
+        print("PASS: nothing added that the sources do not support (numbers, tech, role).")
+        return 0
+    print(f"FAIL: {len(issues)} issue(s)")
+    for i in issues:
+        print(f"  [{i.kind}] {i.message}")
+    return 1
 
 
 def _match(path: str, profile_path: str, company: str | None, level: str | None) -> int:

@@ -1,0 +1,26 @@
+# Verbs that state how big a part you played, by level (PRD §8.2).
+# A rewritten bullet may not use a higher level than its source bullet:
+# source "contributed to" (1) -> rewrite "led" (4) is role inflation.
+#
+# Matching ignores case and needs whole words. Left out on purpose, because they also appear
+# in technical phrases: "supervised" (supervised learning), "directed" (directed graph),
+# "quản lý" (hệ thống quản lý), "hướng dẫn" (a guide), "phụ trách" (ambiguous).
+
+1:
+  en: [assisted, assisting, supported, supporting, helped, helping, contributed to, contributed,
+       contributing, participated in, participated, took part in]
+  vi: [hỗ trợ, tham gia, đóng góp, phụ giúp]
+2:
+  en: [built, building, implemented, implementing, developed, developing, trained, training,
+       created, creating, wrote, integrated, integrating, deployed, deploying, shipped, delivered,
+       fine-tuned, collected, labeled, labelled, tuned, conducted, automated, optimized,
+       optimised, improved, reduced, migrated, analyzed, analysed, evaluated]
+  vi: [xây dựng, triển khai, phát triển, huấn luyện, tích hợp, cài đặt, tối ưu, cải thiện]
+3:
+  en: [designed, designing, architected, architecting, owned, owning, drove, driving,
+       established, founded]
+  vi: [thiết kế, chịu trách nhiệm chính, làm chủ]
+4:
+  en: [led, leading, lead, managed, managing, mentored, mentoring, spearheaded, headed,
+       oversaw, coached]
+  vi: [dẫn dắt, trưởng nhóm, lãnh đạo, quản lý nhóm, kèm cặp]

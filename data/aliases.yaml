@@ -1,0 +1,125 @@
+# Technology names and the spellings that mean EXACTLY the same thing (PRD §8.2).
+# Used by the grounding check: a technology in a rewritten bullet must also be in its source
+# bullet, after mapping every spelling to the name on the left.
+#
+# Rules for editing:
+# - Only true equivalents. Never map a specific thing to a broader one ("YOLOv8" is not
+#   "object detection", "LangGraph" is not "LangChain"): that would let a rewrite claim
+#   something the source does not say.
+# - Avoid short aliases that are common words ("go", "tf", "ts", "r").
+# - Matching ignores case and needs word boundaries: "SQL" does not match inside "PostgreSQL".
+# - When the LLM judge reports a technology that is missing here, add it.
+
+# Languages
+Python: [python3]
+SQL: []
+Java: []
+C++: [cpp]
+JavaScript: [js]
+TypeScript: []
+Golang: []
+Rust: []
+Bash: [shell scripting]
+
+# ML frameworks and libraries
+PyTorch: [torch]
+TensorFlow: []
+Keras: []
+JAX: []
+scikit-learn: [sklearn, scikit learn]
+XGBoost: []
+LightGBM: []
+Hugging Face: [huggingface]
+NumPy: []
+Pandas: []
+
+# Computer vision
+OpenCV: [cv2]
+YOLO: []
+YOLOv8: [yolo v8]
+YOLO26: []
+ByteTrack: []
+DeepSORT: [deep sort]
+TransReID: []
+OSNet: []
+EfficientNet: []
+EfficientNetB0: [efficientnet-b0, efficientnet b0]
+ResNet: []
+MobileNetV2: [mobilenet v2]
+InsightFace: []
+ArcFace: []
+PaddleOCR: []
+VietOCR: []
+Tesseract: []
+Detectron2: []
+
+# Edge and inference
+Jetson Orin: []
+Jetson Nano: []
+TensorRT: []
+ONNX: []
+ONNX Runtime: [onnxruntime]
+CUDA: []
+Triton: [triton inference server]
+
+# LLMs, retrieval, speech
+LLM: [llms, large language model, large language models, mô hình ngôn ngữ lớn]
+RAG: [retrieval-augmented generation, retrieval augmented generation]
+LangChain: []
+LangGraph: []
+LlamaIndex: []
+OpenAI API: [openai]
+Gemini API: [gemini]
+vLLM: []
+SGLang: []
+TensorRT-LLM: []
+LoRA: []
+QLoRA: []
+PEFT: []
+RLHF: []
+DPO: []
+BM25: []
+FAISS: []
+Qdrant: []
+Chroma: [chromadb]
+Milvus: []
+pgvector: []
+Elasticsearch: []
+Whisper: []
+MarianMT: []
+
+# Backend and data
+FastAPI: []
+Flask: []
+Django: []
+REST API: [rest apis, restful api, restful apis]
+gRPC: []
+PostgreSQL: [postgres]
+MySQL: []
+MongoDB: []
+Redis: []
+SQLite: []
+Kafka: []
+RabbitMQ: []
+Celery: []
+
+# Infrastructure and MLOps
+Docker: []
+Kubernetes: [k8s]
+AWS: [amazon web services]
+GCP: [google cloud, google cloud platform]
+Azure: []
+Airflow: []
+MLflow: []
+Git: []
+GitHub Actions: []
+CI/CD: []
+Linux: []
+
+# UI and developer tools
+Streamlit: []
+Gradio: []
+React: []
+Next.js: [nextjs]
+Cursor: []
+GitHub Copilot: [copilot]
