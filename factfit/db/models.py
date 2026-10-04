@@ -63,6 +63,7 @@ class Match(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     job_id: int = Field(foreign_key="jobs.id", index=True)
     profile_version: str  # hash of profile.yaml at match time
+    prompt_version: str | None = None  # e.g. "match/v1"
     score: int
     result_json: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     created_at: datetime = Field(default_factory=_now)

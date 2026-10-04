@@ -1,5 +1,6 @@
 """Load `profile.yaml`, validate it, and report every problem with its line number."""
 
+import hashlib
 from pathlib import Path as FilePath
 
 import yaml
@@ -16,6 +17,11 @@ class ProfileError(Exception):
         # Structural errors stop validation before the cross-file rules run.
         self.structural = structural
         super().__init__("\n".join(i.format(file) for i in issues))
+
+
+def profile_version(file: str | FilePath) -> str:
+    """Short hash of the file: any edit to the profile gives a new version."""
+    return hashlib.sha256(FilePath(file).read_bytes()).hexdigest()[:12]
 
 
 def load_profile(file: str | FilePath) -> Profile:

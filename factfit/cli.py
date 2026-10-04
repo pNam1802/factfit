@@ -30,6 +30,15 @@ def main(argv: list[str] | None = None) -> int:
         default=["default"],
         help="reasoning efforts to compare: default, minimal, low, medium, high",
     )
+    m = commands.add_parser("match", help="check your profile against a job description file")
+    m.add_argument("path", help="text file with the job description")
+    m.add_argument("--profile", default="data/profile.yaml")
+    m.add_argument("--company", help="company name, if the JD does not say")
+    m.add_argument(
+        "--level",
+        choices=["intern", "fresher", "junior", "mid", "senior"],
+        help="your level, for postings that hire several (default: lowest the JD accepts)",
+    )
     args = parser.parse_args(argv)
 
     if args.command == "validate-profile":
@@ -40,7 +49,93 @@ def main(argv: list[str] | None = None) -> int:
         return _parse_jd(args.path, args.company, args.url)
     if args.command == "eval-parse":
         return _eval_parse(args.split, args.prompts, args.efforts)
+    if args.command == "match":
+        return _match(args.path, args.profile, args.company, args.level)
     return 2
+
+
+def _match(path: str, profile_path: str, company: str | None, level: str | None) -> int:
+    import uuid
+    from pathlib import Path
+
+    from sqlalchemy import func
+    from sqlmodel import Session, select
+
+    from factfit.agent.nodes.match import match_job, profile_items
+    from factfit.agent.nodes.parse_jd import parse_jd
+    from factfit.db import LLMCall, init_db, make_engine
+    from factfit.llm import LLMError, make_client
+    from factfit.profile import ProfileError, load_profile, profile_version
+
+    try:
+        profile = load_profile(profile_path)
+    except ProfileError as e:
+        print(f"{profile_path} is not valid yet ({len(e.issues)} problem(s)).")
+        print(f"Run: uv run factfit validate-profile {profile_path}")
+        return 1
+    except FileNotFoundError:
+        print(f"{profile_path}: file not found")
+        return 1
+
+    engine = make_engine()
+    init_db(engine)
+    run_id = uuid.uuid4().hex
+    try:
+        raw = Path(path).read_text(encoding="utf-8")
+        client = make_client(engine=engine)
+        with Session(engine) as session:
+            parsed = parse_jd(raw, client=client, session=session, company=company, run_id=run_id)
+            jd = parsed.jd
+            # Without --level, judge as the lowest level the posting accepts.
+            applicant_level = level or (jd.seniority if jd.seniority != "unknown" else None)
+            outcome = match_job(
+                parsed.job,
+                profile,
+                profile_version=profile_version(profile_path),
+                client=client,
+                session=session,
+                level=applicant_level,
+                run_id=run_id,
+            )
+            calls, cost, latency = session.exec(
+                select(
+                    func.count(), func.sum(LLMCall.cost_usd), func.sum(LLMCall.latency_ms)
+                ).where(LLMCall.run_id == run_id)
+            ).one()
+    except (OSError, ValueError, LLMError) as e:
+        print(f"FAILED: {e}")
+        return 1
+
+    result = outcome.result
+    reqs = {r.id: (r, "must") for r in jd.must_have} | {r.id: (r, "nice") for r in jd.nice_to_have}
+    item_text = {i.id: i.text for i in profile_items(profile)}
+    icon = {"met": "[x]", "partial": "[~]", "missing": "[ ]", "unverifiable": "[?]"}
+
+    print(f"{jd.title}  |  {jd.company or '?'}  |  judged as level: {result.level or 'any'}")
+    print(f"Match score: {result.score}/100")
+    for bucket in ("must", "nice"):
+        rows = [r for r in result.requirements if reqs[r.req_id][1] == bucket]
+        if not rows:
+            continue
+        met = sum(r.status == "met" for r in rows)
+        part = sum(r.status == "partial" for r in rows)
+        title = "Must have" if bucket == "must" else "Nice to have"
+        print(f"\n{title}: {met} met, {part} partial, of {len(rows)}")
+        for r in rows:
+            print(f"  {icon[r.status]} {r.req_id:>4}  {reqs[r.req_id][0].text}")
+            print(f"           {r.note}")
+            for e in r.evidence:
+                print(f"           <- {e}: {item_text.get(e, '')[:90]}")
+    if result.excluded:
+        print(f"\nSkipped (for another level): {', '.join(result.excluded)}")
+    print("\nLegend: [x] met  [~] partial  [ ] missing  [?] a CV cannot show this")
+
+    if outcome.cached and parsed.cached:
+        print("\n(cached: no LLM call)")
+    else:
+        cost_text = f"${cost:.5f}" if cost is not None else "unknown"
+        print(f"\nLLM calls: {calls}, total latency: {latency} ms, cost: {cost_text}")
+    return 0
 
 
 def _eval_parse(split: str, prompts: list[str], efforts: list[str]) -> int:

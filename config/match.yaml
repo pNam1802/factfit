@@ -1,0 +1,25 @@
+# How the match score (0-100) is computed from requirement statuses. Code, not the LLM.
+#
+#   score = 100 * sum(weight * credit) / sum(weight)
+#   weight = bucket weight x category weight
+#
+# Requirements with status "unverifiable" (a CV cannot prove them) and requirements for
+# another level are left out of both sums.
+# First guess on 2026-10-04; tune once match is checked against hand labels (PRD §10.1).
+
+bucket:
+  must_have: 1.0
+  nice_to_have: 0.3
+
+category:
+  skill: 1.0
+  experience: 1.0
+  education: 1.0
+  language: 0.5
+  soft_skill: 0.25
+  other: 0.25
+
+credit:
+  met: 1.0
+  partial: 0.5
+  missing: 0.0
