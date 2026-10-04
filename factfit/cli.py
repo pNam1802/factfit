@@ -39,6 +39,11 @@ def main(argv: list[str] | None = None) -> int:
         choices=["intern", "fresher", "junior", "mid", "senior"],
         help="your level, for postings that hire several (default: lowest the JD accepts)",
     )
+    dev = commands.add_parser("dev", help="run the API and the web UI together")
+    dev.add_argument("--api-port", type=int, default=8000)
+    dev.add_argument("--ui-port", type=int, default=3000)
+    oa = commands.add_parser("export-openapi", help="write the API schema for the UI types")
+    oa.add_argument("path", nargs="?", default="ui/openapi.json")
     args = parser.parse_args(argv)
 
     if args.command == "validate-profile":
@@ -51,6 +56,16 @@ def main(argv: list[str] | None = None) -> int:
         return _eval_parse(args.split, args.prompts, args.efforts)
     if args.command == "match":
         return _match(args.path, args.profile, args.company, args.level)
+    if args.command == "dev":
+        from factfit.devserver import run_dev
+
+        return run_dev(api_port=args.api_port, ui_port=args.ui_port)
+    if args.command == "export-openapi":
+        from factfit.api.app import export_openapi
+
+        export_openapi(args.path)
+        print(f"Wrote {args.path}. Regenerate UI types with: cd ui && npm run gen:api")
+        return 0
     return 2
 
 

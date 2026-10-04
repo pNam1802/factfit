@@ -2,7 +2,7 @@
 
 > LangGraph agent that tailors LaTeX CVs to job descriptions — every bullet traced to a verified profile, with a 3-layer hallucination check.
 
-**Status:** 🚧 Work in progress (week 1 of 6 done). Metrics, demo, and setup instructions will land here once the MVP runs end-to-end.
+**Status:** 🚧 Work in progress (week 2 of 6 done). Metrics, demo, and setup instructions will land here once the MVP runs end-to-end.
 
 ## Why
 
@@ -40,7 +40,12 @@ uv run factfit validate-profile           # check it: unique ids, skill evidence
 
 cp .env.example .env                      # add your OPENAI_API_KEY
 uv run factfit llm-check                  # one tiny request: checks key, model, cost logging
+
+uv run factfit dev                        # web UI on :3000 + API on :8000 (needs Node.js)
+uv run factfit match path/to/jd.txt       # same check from the terminal
 ```
+
+Try it before your own profile validates by setting `FACTFIT_PROFILE=data/profile.example.yaml` in `.env`.
 
 Models per agent step and their prices live in [`config/llm.yaml`](config/llm.yaml). Every LLM call (tokens, cost, latency, errors) is logged to the `llm_calls` table in `data/factfit.db`.
 
@@ -49,7 +54,7 @@ Set `FACTFIT_LLM_MODE=mock` to answer from saved fixtures in `evals/fixtures/` w
 ## Roadmap
 
 - [x] Week 1 — profile schema, LLM client, data model ([design decisions](docs/adr/))
-- [ ] Week 2 — JD parsing and matching, with evals
+- [x] Week 2 — JD parsing (with an eval harness) and matching, first web UI
 - [ ] Week 3 — rewrite + grounding check, with a 200+ case eval set
 - [ ] Week 4 — review UI, LaTeX export, application tracker
 - [ ] Week 5–6 — eval report (ablation, model comparison), Docker demo without API key
