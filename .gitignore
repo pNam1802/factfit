@@ -6,6 +6,8 @@ PRD.md
 data/profile.yaml
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 *.bak
 *.sqlite
 *.sqlite3
