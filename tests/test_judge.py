@@ -84,3 +84,14 @@ def test_hand_cases_reject_a_split_text(tmp_path):
     )
     with pytest.raises(ValueError, match="quote the text"):
         gc.load_hand(path)
+
+
+@pytest.mark.parametrize("version, sees_skills", [("v1", False), ("v2", True)])
+def test_judge_v2_sees_the_source_skills(version, sees_skills):
+    config = LLMConfig.model_validate(
+        {"models": {"small": "m"}, "nodes": {"judge": {"model": "small", "prompt": version}}}
+    )
+    source = Bullet(id="s", text="Built a tracker", skills=["Python"])
+    backend = JudgeBackend([])
+    judge_bullet("Built a tracker in Python", [source], LLMClient(backend, config))
+    assert ("skills used: Python" in backend.users[0]) is sees_skills

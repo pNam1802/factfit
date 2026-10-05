@@ -39,6 +39,12 @@ def main(argv: list[str] | None = None) -> int:
         choices=["intern", "fresher", "junior", "mid", "senior"],
         help="your level, for postings that hire several (default: lowest the JD accepts)",
     )
+    tl = commands.add_parser("tailor", help="select and rewrite bullets for a job, with checks")
+    tl.add_argument("path", help="text file with the job description")
+    tl.add_argument("--profile", default="data/profile.yaml")
+    tl.add_argument("--company", help="company name, if the JD does not say")
+    tl.add_argument("--level", choices=["intern", "fresher", "junior", "mid", "senior"])
+    tl.add_argument("--no-judge", action="store_true", help="rule checks only (no LLM judge)")
     dev = commands.add_parser("dev", help="run the API and the web UI together")
     dev.add_argument("--api-port", type=int, default=8000)
     dev.add_argument("--ui-port", type=int, default=3000)
@@ -73,6 +79,8 @@ def main(argv: list[str] | None = None) -> int:
         return _eval_parse(args.split, args.prompts, args.efforts)
     if args.command == "match":
         return _match(args.path, args.profile, args.company, args.level)
+    if args.command == "tailor":
+        return _tailor(args.path, args.profile, args.company, args.level, not args.no_judge)
     if args.command == "dev":
         from factfit.devserver import run_dev
 
@@ -277,6 +285,99 @@ def _check_bullet(source_ids: list[str], text: str, profile_path: str | None) ->
     for i in issues:
         print(f"  [{i.kind}] {i.message}")
     return 1
+
+
+def _tailor(
+    path: str, profile_path: str, company: str | None, level: str | None, use_judge: bool
+) -> int:
+    import json
+    import re
+    import uuid
+    from pathlib import Path
+
+    from sqlalchemy import func
+    from sqlmodel import Session, select
+
+    from factfit.agent.nodes.match import match_job
+    from factfit.agent.nodes.parse_jd import parse_jd
+    from factfit.agent.tailor import tailor
+    from factfit.db import LLMCall, init_db, make_engine
+    from factfit.llm import LLMError, make_client
+    from factfit.profile import ProfileError, load_profile, profile_version
+
+    try:
+        profile = load_profile(profile_path)
+    except (ProfileError, FileNotFoundError):
+        print(f"{profile_path} is missing or not valid. Run: uv run factfit validate-profile")
+        return 1
+
+    engine = make_engine()
+    init_db(engine)
+    run_id = uuid.uuid4().hex
+    try:
+        raw = Path(path).read_text(encoding="utf-8")
+        client = make_client(engine=engine)
+        with Session(engine) as session:
+            parsed = parse_jd(raw, client=client, session=session, company=company, run_id=run_id)
+            jd = parsed.jd
+            applicant_level = level or (jd.seniority if jd.seniority != "unknown" else None)
+            matched = match_job(
+                parsed.job, profile, profile_version=profile_version(profile_path),
+                client=client, session=session, level=applicant_level, run_id=run_id,
+            )  # fmt: skip
+            run = tailor(
+                profile, jd, matched.result, client=client, use_judge=use_judge,
+                run_id=run_id, progress=lambda m: print(f"  {m}"),
+            )  # fmt: skip
+            calls, cost, latency = session.exec(
+                select(
+                    func.count(), func.sum(LLMCall.cost_usd), func.sum(LLMCall.latency_ms)
+                ).where(LLMCall.run_id == run_id)
+            ).one()
+    except (OSError, ValueError, LLMError) as e:
+        print(f"FAILED: {e}")
+        return 1
+
+    print(f"\n{jd.title} | {jd.company or '?'} | match score {matched.result.score}/100")
+    by_entry: dict[int, list] = {}
+    for d in run.drafts:
+        by_entry.setdefault(id(d.entry), []).append(d)
+    for entry in run.selected:
+        print(f"\n== {entry.title}")
+        for d in by_entry.get(id(entry), []):
+            if d.fallback:
+                status = "FALLBACK (rewrites failed, original kept)"
+            else:
+                status = "pass" + (" after retry" if d.attempts > 1 else "")
+            print(f"  [{d.source.id}] {status}")
+            print(f"    original: {d.source.text}")
+            if d.text != d.source.text:
+                print(f"    tailored: {d.text}")
+            for text, problems in d.history:
+                print(f"    rejected: {text}")
+                for p in problems:
+                    print(f"      - {p}")
+    if run.cv.summary:
+        print(f"\nSummary ({run.cv.summary.source_ids[0]}): {run.cv.summary.text}")
+    print(f"Skills: {', '.join(run.cv.skills)}")
+
+    rewritten = sum(d.text != d.source.text for d in run.drafts)
+    retried = sum(d.attempts > 1 and not d.fallback for d in run.drafts)
+    fallbacks = sum(d.fallback for d in run.drafts)
+    print(
+        f"\n{len(run.drafts)} bullets: {rewritten} rewritten, {retried} passed after a retry, "
+        f"{fallbacks} fell back to the original"
+    )
+    cost_text = f"${cost:.4f}" if cost is not None else "unknown"
+    print(f"LLM calls: {calls}, summed latency: {latency} ms, cost: {cost_text}")
+
+    out = Path("output") / f"tailored-{re.sub(r'[^a-z0-9]+', '-', jd.title.lower())[:40]}.json"
+    out.parent.mkdir(exist_ok=True)
+    out.write_text(
+        json.dumps(run.cv.model_dump(mode="json"), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"Tailored CV JSON: {out}")
+    return 0
 
 
 def _match(path: str, profile_path: str, company: str | None, level: str | None) -> int:

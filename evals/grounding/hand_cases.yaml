@@ -92,3 +92,10 @@ hard_paraphrase:
   - {source: s28, text: "Automated nightly backups of the lab's PostgreSQL database with a Bash script"}
   - {source: s30, text: "Presented 5 findings on churn to the product team after analyzing the data in Pandas"}
   - {source: s32, text: "Tham gia phát triển chatbot dùng LangChain và OpenAI API để hỗ trợ sinh viên"}
+  # Added 2026-10-05 after a real run: the rewrite used a technology listed only in the
+  # source bullet's `skills` (a valid source), and judge v1 flagged it. Added after the
+  # problem was seen, so these document it rather than measure it independently.
+  - {source: s01, text: "Built a multi-camera people-tracking pipeline in Python with YOLOv8 and ByteTrack running at 25 fps on a Jetson Orin"}
+  - {source: s14, text: "Developed a 6-node LangGraph agent on the OpenAI API that drafts replies to customer emails"}
+  - {source: s15, text: "Collected and cleaned 10k news articles with Pandas for a Vietnamese topic classifier"}
+  - {source: s25, text: "Built a traffic-light violation detector with YOLOv8, DeepSORT and OpenCV on recorded street video"}

@@ -96,16 +96,18 @@ def summary(results: list[TypeResult]) -> dict[str, float | None]:
 class JudgeConfig:
     model: str
     effort: str | None  # None = the model's default
+    prompt: str | None = None  # None = the version in config/llm.yaml
 
     @property
     def label(self) -> str:
-        return f"{self.model}/{self.effort or 'default'}"
+        base = f"{self.model}/{self.effort or 'default'}"
+        return f"{base} {self.prompt}" if self.prompt else base
 
     @classmethod
     def parse(cls, spec: str) -> "JudgeConfig":
-        """ "gpt-5-mini:low" -> JudgeConfig("gpt-5-mini", "low")."""
-        model, _, effort = spec.partition(":")
-        return cls(model, None if effort in ("", "default") else effort)
+        """ "gpt-5-mini:low" or "gpt-5-mini:low:v2" -> JudgeConfig."""
+        model, effort, prompt = (spec.split(":") + ["", ""])[:3]
+        return cls(model, None if effort in ("", "default") else effort, prompt or None)
 
 
 @dataclass
@@ -134,7 +136,7 @@ def judge_cases(
 ) -> dict[str, Verdict]:
     """Run the judge on every case (cached); return verdicts by case id."""
     config = base_config.model_copy(deep=True)
-    prompt_version = config.nodes[JUDGE_NODE].prompt
+    prompt_version = cfg.prompt or config.nodes[JUDGE_NODE].prompt
     config.nodes[JUDGE_NODE] = NodeSettings(
         model=cfg.model, prompt=prompt_version, reasoning_effort=cfg.effort
     )

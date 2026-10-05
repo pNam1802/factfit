@@ -8,16 +8,22 @@
 Every rewritten CV bullet must add nothing its source bullets do not support. Two ways to
 check: rules in code (numbers, technologies via an alias table, role-verb levels), or an LLM
 asked to list unsupported claims. Measured on the public test set in
-[`evals/grounding`](../../evals/grounding/RESULTS.md) (268 cases: 186 fabricated in six
-kinds, 82 faithful paraphrases):
+[`evals/grounding`](../../evals/grounding/RESULTS.md) (272 cases: 186 fabricated in six
+kinds, 86 faithful paraphrases):
 
 | Checker | Recall, fabricated | False alarms | $ / 1,000 bullets | Median latency |
 | --- | ---: | ---: | ---: | ---: |
 | rules only | 46% | 1% | 0 | ~0 s |
-| judge gpt-5-mini, low effort | **100%** | **0%** | 0.52 | 2.8 s |
-| judge gpt-5-mini, minimal effort | 98% (misses 3 of 32 subtle claims) | 0% | 0.28 | 1.7 s |
-| judge gpt-5.4-mini, low effort | 100% | 1% | 0.82 | 1.5 s |
-| rules + judge gpt-5-mini low | 100% | 1% | 0.52 | 2.8 s |
+| judge gpt-5-mini, low effort, prompt v1 | 100% | 5% | 0.52 | 2.8 s |
+| judge gpt-5-mini, minimal effort, v1 | 98% (misses 3 of 32 subtle claims) | 3% | 0.28 | 1.7 s |
+| judge gpt-5.4-mini, low effort, v1 | 100% | 6% | 0.82 | 1.5 s |
+| **judge gpt-5-mini, low effort, prompt v2** | **100%** | **0%** | 0.56 | ~2.8 s |
+| rules + judge gpt-5-mini low v2 | 100% | 1% | 0.56 | ~2.8 s |
+
+Judge v1 saw only the source sentence, so it rejected technologies listed in the source
+bullet's `skills` (valid sources, accepted by the rules): found in the first real tailoring
+run, where 3 of 4 bullets needed a pointless retry. v2 also sees the skills; on that run it
+cut LLM calls from 11 to 6 and cost from $0.033 to $0.019.
 
 Rules catch every number, technology and role change and nothing else: scale, outcome and
 subtle claims are words, invisible to them. The judge catches all six kinds, and on this set
@@ -26,7 +32,7 @@ adding the rules contributes no extra recall while adding one false alarm.
 ## Decision
 
 Run the rule checks first, then the LLM judge (gpt-5-mini, low reasoning effort, prompt
-`judge/v1`). A bullet passes only if both pass. If the rules already fail a bullet, skip the
+`judge/v2`). A bullet passes only if both pass. If the rules already fail a bullet, skip the
 judge for that attempt: the rewrite goes back with the rule issues.
 
 Why keep the rules although the judge alone scored as well here:

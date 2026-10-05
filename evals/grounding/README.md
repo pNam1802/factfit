@@ -21,7 +21,8 @@ Generated cases are in [`cases.jsonl`](cases.jsonl); hand-written ones in
 Build: `uv run factfit build-grounding-cases` (code mutations are reproducible; LLM cases
 use `prompts/gen_cases/v1.md` and change on every build). Score the rules alone with
 `uv run factfit eval-grounding`, or the full ablation with
-`uv run factfit eval-grounding --judges gpt-5-mini:low gpt-5-mini:minimal gpt-5.4-mini:low --write-report`.
+`uv run factfit eval-grounding --judges gpt-5-mini:low:v1 gpt-5-mini:minimal:v1 gpt-5.4-mini:low:v1 gpt-5-mini:low:v2 --write-report`
+(`model:effort:prompt`).
 
 **Results: [RESULTS.md](RESULTS.md).** Why the product runs rules first, then the judge:
 [ADR 0003](../../docs/adr/0003-grounding-code-first.md).
@@ -34,6 +35,9 @@ All 136 LLM-written cases were read against their source.
   and deployed ...", which adds a claim. It fit no fabricated type cleanly.
 - Dropped `c0110` on 2026-10-05 for the same reason ("Trained" became "Built and trained").
   The first review missed it; the gpt-5.4-mini judge flagged it, and it was right.
+- Four hard_paraphrase cases (hp017-hp020) were added after a real tailoring run showed
+  judge v1 rejecting a technology listed in the source bullet's `skills`; they document
+  that problem (fixed in judge v2) rather than measure it independently.
 - The 48 hand-written cases (2026-10-05) were written by the same author as the judge prompt,
   which may make them easier for that prompt than cases written by someone else.
 - LLM fabrications that also changed a number, technology or role verb are dropped at build

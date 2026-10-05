@@ -1,0 +1,20 @@
+# How the `select` step picks profile bullets for one job (code, no LLM).
+# First guess on 2026-10-05; tune with real use (PRD §10.2: share of bullets kept / edited).
+
+limits:
+  bullets_per_experience: 3 # every experience stays on the CV, with at most this many bullets
+  projects: 3 # projects compete: only the best few are kept
+  bullets_per_project: 2
+
+# A bullet's score: evidence it gives for the job's requirements, plus JD keywords it
+# mentions, plus how recent its entry is.
+weights:
+  evidence:
+    must_met: 3.0
+    must_partial: 2.0
+    nice_met: 1.5
+    nice_partial: 1.0
+  keyword: 0.5 # per JD keyword found in the bullet's text or skills
+  keyword_cap: 2.0 # at most this much from keywords, so keyword stuffing does not win
+  recency: 1.0 # entry ending now gets the full weight, fading over `recency_years`
+  recency_years: 4

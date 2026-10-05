@@ -23,7 +23,10 @@ class TailoredBullet(Strict):
     text: str
     source_bullet_ids: list[str] = Field(min_length=1)
     grounding: Grounding = "pending"
-    issues: list[str] = []
+    issues: list[str] = []  # problems found in the rejected rewrites, kept for the reviewer
+    # True when every rewrite failed the checks and the original source text is used instead.
+    fallback: bool = False
+    attempts: int = 0  # rewrite attempts made
 
 
 class TailoredSection(Strict):

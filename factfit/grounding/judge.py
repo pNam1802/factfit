@@ -41,8 +41,17 @@ def judge_bullet(
         prompt_version=prompt.id,
         system=prompt.system,
         user=prompt.render(
-            sources="\n".join(f"- {b.text}" for b in sources),
+            sources="\n".join(_source_line(b, with_skills=prompt.version != "v1") for b in sources),
             rewrite=new_text,
         ),
         run_id=run_id,
     )
+
+
+def _source_line(bullet: Bullet, with_skills: bool) -> str:
+    # v1 saw the sentence only, and flagged technologies listed in the bullet's skills that
+    # the rule layer accepts. v2 sees the skills too. v1 keeps its input so its measured
+    # results stay reproducible.
+    if with_skills and bullet.skills:
+        return f"- {bullet.text} (skills used: {', '.join(bullet.skills)})"
+    return f"- {bullet.text}"
