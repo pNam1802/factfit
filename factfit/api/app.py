@@ -7,6 +7,7 @@ Interactive docs: http://localhost:8000/docs
 
 import json
 import os
+import re
 import time
 import uuid
 from collections.abc import Callable, Iterator
@@ -16,7 +17,7 @@ from typing import Annotated
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from langgraph.types import Command
 from sqlalchemy import Engine
 from sqlmodel import Session
@@ -38,6 +39,8 @@ from factfit.api.schemas import (
     JobOut,
     MatchOut,
     MatchRequest,
+    RenderOut,
+    RenderRequest,
     RequirementOut,
     ReviewRequest,
     RunOut,
@@ -47,7 +50,10 @@ from factfit.api.schemas import (
 from factfit.db import Company, Job, init_db, make_engine
 from factfit.llm import LLMClient, LLMError, make_client
 from factfit.profile import ProfileError, load_profile, profile_version
+from factfit.render.compile import RenderError, render_and_check
 from factfit.schemas.job import JobDescription
+from factfit.schemas.profile import Profile
+from factfit.schemas.tailored import TailoredCV
 
 DEFAULT_PROFILE = "data/profile.yaml"
 
@@ -62,12 +68,14 @@ def create_app(
     client_factory: Callable[..., LLMClient] = make_client,
     profile_path: str | None = None,
     checkpoint_path: str | Path | None = None,
+    output_dir: str | Path = "output",
 ) -> FastAPI:
     load_dotenv()
     engine = engine or make_engine()
     init_db(engine)
     profile_file = profile_path or os.environ.get("FACTFIT_PROFILE", DEFAULT_PROFILE)
     checkpoint_file = checkpoint_path or DEFAULT_CHECKPOINTS
+    output_root = Path(output_dir)
 
     app = FastAPI(title="factfit", version="0.1.0", description="Tailor CVs without inventing.")
     clients: dict[str, LLMClient] = {}
@@ -280,6 +288,62 @@ def create_app(
         decisions = [d.model_dump() for d in body.decisions]
         graph.invoke(Command(resume=decisions), run_config(run_id))
         return status_of(graph, run_id)
+
+    def run_dir(run_id: str) -> Path:
+        if not re.fullmatch(r"[0-9a-f]{32}", run_id):  # never build paths from arbitrary input
+            raise HTTPException(status_code=404, detail="unknown run")
+        return output_root / "runs" / run_id
+
+    @app.post(
+        "/runs/{run_id}/render",
+        response_model=RenderOut,
+        responses={409: {"model": ErrorOut}, 422: {"model": ErrorOut}, 503: {"model": ErrorOut}},
+    )
+    def render_run(run_id: str, graph: GraphDep, body: RenderRequest | None = None) -> RenderOut:
+        """Compile the reviewed CV to PDF and run the ATS check on it."""
+        out_dir = run_dir(run_id)
+        values = graph.get_state(run_config(run_id)).values or {}
+        if not values.get("cv"):
+            raise HTTPException(status_code=409, detail=f"run {run_id} has no reviewed CV yet")
+        # The profile copied when the run started: the PDF matches what was reviewed.
+        profile = Profile.model_validate(values["profile"])
+        cv = TailoredCV.model_validate(values["cv"])
+        keywords = (body.keywords if body and body.keywords is not None else None) or values.get(
+            "jd", {}
+        ).get("keywords", [])
+        try:
+            result, ats = render_and_check(profile, cv, out_dir, keywords)
+        except RenderError as e:
+            status = 503 if "not found on PATH" in str(e) else 422
+            raise HTTPException(status_code=status, detail=str(e)) from e
+        issues = list(ats.issues)
+        if result.pages != 1:
+            issues.append(f"the CV has {result.pages} pages; a tailored CV must fit on 1 page")
+        return RenderOut(
+            run_id=run_id,
+            pages=result.pages,
+            ats_ok=not issues,
+            issues=issues,
+            warnings=ats.warnings,
+            pdf_url=f"/runs/{run_id}/cv.pdf",
+            tex_url=f"/runs/{run_id}/cv.tex",
+        )
+
+    @app.get("/runs/{run_id}/cv.pdf", response_class=FileResponse)
+    def run_pdf(run_id: str) -> FileResponse:
+        path = run_dir(run_id) / "cv.pdf"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="render the CV first")
+        return FileResponse(
+            path, media_type="application/pdf", filename="cv.pdf", content_disposition_type="inline"
+        )  # shown in the page; the UI link downloads it
+
+    @app.get("/runs/{run_id}/cv.tex", response_class=FileResponse)
+    def run_tex(run_id: str) -> FileResponse:
+        path = run_dir(run_id) / "cv.tex"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="render the CV first")
+        return FileResponse(path, media_type="application/x-tex", filename="cv.tex")
 
     @app.get("/runs/{run_id}/events")
     def run_events(run_id: str) -> StreamingResponse:

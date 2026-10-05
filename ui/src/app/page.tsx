@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { MatchResults } from "@/components/match-results";
+import { TailorReview } from "@/components/tailor-review";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -130,6 +131,7 @@ export default function Home() {
       )}
 
       {job && match && <MatchResults job={job} match={match} />}
+      {job && match && <TailorReview key={job.id} jobId={job.id} level={level || null} />}
     </main>
   );
 }

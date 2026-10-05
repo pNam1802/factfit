@@ -110,19 +110,24 @@ def rewrite_entry(
 
 
 def check_draft(
-    draft: Draft, *, client: LLMClient, kb: KnowledgeBase, use_judge: bool, run_id=None
+    draft: Draft,
+    *,
+    client: LLMClient,
+    kb: KnowledgeBase,
+    use_judge: bool,
+    run_id=None,
+    all_problems: bool = False,
 ) -> None:
+    """Rules first; the judge only if rules pass, unless all_problems (a person's edit:
+    report everything at once instead of one layer per round trip)."""
     if not draft.text:
         draft.issues, draft.passed = ["the model returned no rewrite for this bullet"], False
         return
-    rule_issues = check_bullet(draft.text, [draft.source], kb)
-    if rule_issues:
-        draft.issues = [i.message for i in rule_issues]
-    elif use_judge:
+    issues = [i.message for i in check_bullet(draft.text, [draft.source], kb)]
+    if use_judge and (all_problems or not issues):
         verdict = judge_bullet(draft.text, [draft.source], client, run_id=run_id)
-        draft.issues = [f"{c.kind}: '{c.claim}' ({c.why})" for c in verdict.unsupported_claims]
-    else:
-        draft.issues = []
+        issues += [f"{c.kind}: '{c.claim}' ({c.why})" for c in verdict.unsupported_claims]
+    draft.issues = issues
     draft.passed = not draft.issues
 
 

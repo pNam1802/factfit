@@ -112,3 +112,17 @@ class RunStatusOut(BaseModel):
     review_errors: dict[str, list[str]] = {}  # source_id -> why an edit was refused
     cv: dict | None = None  # TailoredCV once done
     error: str | None = None
+
+
+class RenderRequest(Strict):
+    keywords: list[str] | None = None  # default: the job's keywords
+
+
+class RenderOut(BaseModel):
+    run_id: str
+    pages: int
+    ats_ok: bool
+    issues: list[str]  # block sending: unreadable text, more than one page, ...
+    warnings: list[str]
+    pdf_url: str
+    tex_url: str

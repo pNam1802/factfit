@@ -177,3 +177,11 @@ def test_rewrites_that_keep_fabricating_fall_back_to_the_source(env):
     drafts = run_status(graph, "run1")["review"]["drafts"]
     assert all(d["fallback"] and d["text"] == d["original"] for d in drafts)
     assert backend.calls.count("RewriteOutput") == 2  # first try + one retry
+
+
+def test_a_persons_edit_gets_every_problem_at_once(env):
+    graph = start(env, FakeBackend())
+    edit = {"source_id": "b1", "action": "edit", "text": "Built a robust YOLOv8 tracker at 60 fps"}
+    errors = resume(graph, [edit])["review"]["review_errors"]["b1"]
+    # the rule problem (60) and the judge problem (robust) in the same round
+    assert any("'60'" in e for e in errors) and any("robust" in e for e in errors)

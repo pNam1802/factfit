@@ -246,8 +246,15 @@ def build_graph(*, client: LLMClient, engine: Engine, checkpointer=None):
             elif decision and decision.action == "edit":
                 d.text = (decision.text or "").strip()
                 extra = {"user_edited": True, "user_rejected": False}
-                # A person's edit can add claims too: it passes the same checks.
-                check_draft(d, client=client, kb=kb, use_judge=state.get("use_judge", True))
+                # A person's edit can add claims too: it passes the same checks, and every
+                # problem is reported at once rather than one layer per round trip.
+                check_draft(
+                    d,
+                    client=client,
+                    kb=kb,
+                    use_judge=state.get("use_judge", True),
+                    all_problems=True,
+                )
             # "accept" leaves the draft as it is. Any draft still failing, including an edit
             # refused earlier and now "accepted", sends the run back to review.
             if not d.passed:

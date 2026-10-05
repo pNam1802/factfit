@@ -1,3 +1,4 @@
+import shutil
 import time
 
 import pytest
@@ -22,6 +23,7 @@ def api(tmp_path):
         client_factory=lambda engine: LLMClient(FakeBackend(), CONFIG),
         profile_path=str(profile),
         checkpoint_path=tmp_path / "checkpoints.db",
+        output_dir=tmp_path / "output",
     )
     raw = "CV Engineer\nObject detection"
     with Session(engine) as s:
@@ -79,3 +81,25 @@ def test_unknown_run_and_unknown_job(api):
     client, _ = api
     assert client.get("/runs/nope").json()["status"] == "not_found"
     assert client.post("/jobs/999/tailor", json={}).status_code == 404
+
+
+@pytest.mark.skipif(shutil.which("tectonic") is None, reason="tectonic not installed")
+def test_render_after_review_gives_a_checked_pdf(api):
+    client, job_id = api
+    run_id = client.post(f"/jobs/{job_id}/tailor", json={}).json()["run_id"]
+    wait_for(client, run_id, "waiting_review")
+    # Rendering before the review is finished is refused.
+    assert client.post(f"/runs/{run_id}/render", json={}).status_code == 409
+
+    client.post(f"/runs/{run_id}/review", json={"decisions": []})
+    out = client.post(f"/runs/{run_id}/render", json={}).json()
+    assert out["pages"] == 1 and out["ats_ok"], out["issues"]
+    pdf = client.get(out["pdf_url"])
+    assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF"
+    assert rb"\resumeItem{" in client.get(out["tex_url"]).content
+
+
+def test_run_files_reject_odd_run_ids(api):
+    client, _ = api
+    assert client.get("/runs/..%2F..%2Fdata/cv.pdf").status_code == 404
+    assert client.get("/runs/abc/cv.tex").status_code == 404

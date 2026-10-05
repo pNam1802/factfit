@@ -8,6 +8,10 @@ export type Job = components["schemas"]["JobOut"];
 export type Match = components["schemas"]["MatchOut"];
 export type Requirement = components["schemas"]["RequirementOut"];
 export type Level = NonNullable<components["schemas"]["MatchRequest"]["level"]>;
+export type Draft = components["schemas"]["DraftOut"];
+export type RunStatus = components["schemas"]["RunStatusOut"];
+export type Rendered = components["schemas"]["RenderOut"];
+export type ReviewDecision = components["schemas"]["ReviewDecisionIn"];
 
 // "/api" is forwarded to FastAPI by next.config.ts.
 export const api = createClient<paths>({ baseUrl: "/api" });
