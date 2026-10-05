@@ -78,3 +78,12 @@ def _first_error(log: str) -> str:
         if line.startswith("!") or re.match(r"^error:", line):
             return "\n".join(lines[i : i + 3])
     return log[-1500:] or "tectonic failed without output"
+
+
+def render_and_check(profile, cv, out_dir: Path, jd_keywords: list[str] | None = None):
+    """Render, compile and run the ATS check: what every exported CV goes through."""
+    from factfit.render.ats import check_pdf
+    from factfit.render.view import build_view
+
+    result = compile_pdf(render_tex(build_view(profile, cv)), out_dir)
+    return result, check_pdf(result.pdf_path, profile, cv, jd_keywords)

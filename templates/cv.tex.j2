@@ -28,11 +28,25 @@
 \usepackage{tabularx}
 \usepackage{iftex}
 
-% Machine-readable PDF text for ATS. These two lines exist only in pdfLaTeX (Overleaf's
-% default); factfit compiles with tectonic (XeTeX), which skips them.
+% Machine-readable PDF text for ATS.
 \ifPDFTeX
+  % pdfLaTeX (Overleaf's default): map glyphs, including ligatures, back to Unicode.
   \input{glyphtounicode}
   \pdfgentounicode=1
+\else
+  % XeTeX / LuaTeX (tectonic): the same Latin Modern look from Unicode fonts, without
+  % ligatures. With them, "EfficientNet" is read back as "E<U+FB00>icientNet" and an ATS
+  % searching for the keyword misses it (found by factfit's ATS check).
+  \usepackage{fontspec}
+  \defaultfontfeatures{Ligatures=NoCommon}
+  \setmainfont{lmroman10}[
+    Extension = .otf,
+    UprightFont = *-regular,
+    BoldFont = *-bold,
+    ItalicFont = *-italic,
+    BoldItalicFont = *-bolditalic,
+    SmallCapsFont = lmromancaps10-regular,
+  ]
 \fi
 
 \pagestyle{fancy}

@@ -58,6 +58,7 @@ def main(argv: list[str] | None = None) -> int:
         help="preview a profile that fails the rules (structure is still checked); "
         "not allowed with --cv",
     )
+    rd.add_argument("--keywords", default="", help="JD keywords to look for, comma separated")
     oa = commands.add_parser("export-openapi", help="write the API schema for the UI types")
     oa.add_argument("path", nargs="?", default="ui/openapi.json")
     cb = commands.add_parser("check-bullet", help="check a rewritten bullet against its sources")
@@ -102,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "check-bullet":
         return _check_bullet(args.source, args.text, args.profile)
     if args.command == "render":
-        return _render(args.profile, args.cv, args.out, args.unchecked)
+        return _render(args.profile, args.cv, args.out, args.unchecked, args.keywords)
     if args.command == "export-openapi":
         from factfit.api.app import export_openapi
 
@@ -392,13 +393,15 @@ def _tailor(
     return 0
 
 
-def _render(profile_path: str, cv_path: str | None, out: str, unchecked: bool) -> int:
+def _render(
+    profile_path: str, cv_path: str | None, out: str, unchecked: bool, keywords: str = ""
+) -> int:
     import json
     from pathlib import Path
 
     from factfit.profile import ProfileError, load_profile
-    from factfit.render.compile import RenderError, compile_pdf, render_tex
-    from factfit.render.view import build_view, full_profile_cv
+    from factfit.render.compile import RenderError, render_and_check
+    from factfit.render.view import full_profile_cv
     from factfit.schemas.tailored import TailoredCV
 
     if unchecked and cv_path:
@@ -423,11 +426,20 @@ def _render(profile_path: str, cv_path: str | None, out: str, unchecked: bool) -
         cv = full_profile_cv(profile)
 
     try:
-        result = compile_pdf(render_tex(build_view(profile, cv)), Path(out))
+        kws = [k.strip() for k in keywords.split(",") if k.strip()]
+        result, ats = render_and_check(profile, cv, Path(out), kws)
     except RenderError as e:
         print(f"FAILED to compile:\n{e}")
         return 1
     print(f"Wrote {result.tex_path} and {result.pdf_path} ({result.pages} page(s))")
+    print("ATS check: " + ("pass" if ats.ok else f"FAILED, {len(ats.issues)} issue(s)"))
+    for issue in ats.issues:
+        print(f"  - {issue}")
+    for warning in ats.warnings:
+        print(f"  (warning) {warning}")
+    if cv_path and not ats.ok:
+        print("Not exported: an ATS could not read this PDF correctly.")
+        return 1
     # The one-page limit applies to a tailored CV to send (PRD F6), not to a full preview.
     if cv_path and result.pages != 1:
         print("FAILED: a tailored CV must fit on 1 page; select fewer bullets.")
