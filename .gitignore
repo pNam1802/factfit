@@ -53,3 +53,6 @@ evals/jds/
 
 # --- Evaluation outputs: contain parsed text of private job descriptions ---
 evals/results/
+
+# --- Original Overleaf source of the real CV: personal data ---
+data/overleaf/

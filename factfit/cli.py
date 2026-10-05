@@ -48,6 +48,16 @@ def main(argv: list[str] | None = None) -> int:
     dev = commands.add_parser("dev", help="run the API and the web UI together")
     dev.add_argument("--api-port", type=int, default=8000)
     dev.add_argument("--ui-port", type=int, default=3000)
+    rd = commands.add_parser("render", help="render a CV to LaTeX and PDF")
+    rd.add_argument("--profile", default="data/profile.yaml")
+    rd.add_argument("--cv", help="tailored CV JSON (from factfit tailor); default: whole profile")
+    rd.add_argument("--out", default="output/render", help="folder for cv.tex and cv.pdf")
+    rd.add_argument(
+        "--unchecked",
+        action="store_true",
+        help="preview a profile that fails the rules (structure is still checked); "
+        "not allowed with --cv",
+    )
     oa = commands.add_parser("export-openapi", help="write the API schema for the UI types")
     oa.add_argument("path", nargs="?", default="ui/openapi.json")
     cb = commands.add_parser("check-bullet", help="check a rewritten bullet against its sources")
@@ -91,6 +101,8 @@ def main(argv: list[str] | None = None) -> int:
         return _eval_grounding(args.show_misses, args.judges, args.write_report)
     if args.command == "check-bullet":
         return _check_bullet(args.source, args.text, args.profile)
+    if args.command == "render":
+        return _render(args.profile, args.cv, args.out, args.unchecked)
     if args.command == "export-openapi":
         from factfit.api.app import export_openapi
 
@@ -377,6 +389,49 @@ def _tailor(
         json.dumps(run.cv.model_dump(mode="json"), ensure_ascii=False, indent=2), encoding="utf-8"
     )
     print(f"Tailored CV JSON: {out}")
+    return 0
+
+
+def _render(profile_path: str, cv_path: str | None, out: str, unchecked: bool) -> int:
+    import json
+    from pathlib import Path
+
+    from factfit.profile import ProfileError, load_profile
+    from factfit.render.compile import RenderError, compile_pdf, render_tex
+    from factfit.render.view import build_view, full_profile_cv
+    from factfit.schemas.tailored import TailoredCV
+
+    if unchecked and cv_path:
+        print("--unchecked is only for previewing a profile, not for a tailored CV.")
+        return 1
+    try:
+        profile = load_profile(profile_path, check=not unchecked)
+    except ProfileError as e:
+        print(f"{profile_path}: {len(e.issues)} problem(s). Run: uv run factfit validate-profile")
+        if not e.structural:
+            print("To preview it anyway: uv run factfit render --unchecked")
+        return 1
+    if unchecked:
+        print("WARNING: preview of an unchecked profile; do not send this CV.")
+
+    if cv_path:
+        cv = TailoredCV.model_validate(json.loads(Path(cv_path).read_text(encoding="utf-8")))
+        if not cv.ready_to_export():
+            print("This CV still has bullets that failed or were never checked; not exported.")
+            return 1
+    else:
+        cv = full_profile_cv(profile)
+
+    try:
+        result = compile_pdf(render_tex(build_view(profile, cv)), Path(out))
+    except RenderError as e:
+        print(f"FAILED to compile:\n{e}")
+        return 1
+    print(f"Wrote {result.tex_path} and {result.pdf_path} ({result.pages} page(s))")
+    # The one-page limit applies to a tailored CV to send (PRD F6), not to a full preview.
+    if cv_path and result.pages != 1:
+        print("FAILED: a tailored CV must fit on 1 page; select fewer bullets.")
+        return 1
     return 0
 
 

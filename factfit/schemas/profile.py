@@ -72,6 +72,9 @@ class Project(Strict):
     name: NonEmpty
     role: str | None = None
     url: str | None = None
+    # Shown after the project name on the CV ("| Python, LangGraph"). Empty: use the
+    # skills of the project's bullets.
+    tech: list[str] = []
     start: YearMonth | None = None
     end: YearMonth | Literal["present"] | None = None
     bullets: list[Bullet] = Field(min_length=1)
@@ -81,6 +84,7 @@ class Education(Strict):
     id: Id
     school: NonEmpty
     degree: NonEmpty
+    location: str | None = None
     start: YearMonth
     end: YearMonth | Literal["present"]
     gpa: str | None = None  # kept as text: "3.6/4.0", "8.2/10"
@@ -90,6 +94,8 @@ class Education(Strict):
 class Skill(Strict):
     name: NonEmpty
     level: Literal["beginner", "intermediate", "advanced"] | None = None
+    # Group heading on the CV, e.g. "LLM/AI Agents"; groups appear in order of first use.
+    category: str | None = None
     evidence: list[Id] = Field(min_length=1, description="Ids of bullets that prove this skill.")
 
 

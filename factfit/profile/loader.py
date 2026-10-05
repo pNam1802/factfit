@@ -24,7 +24,12 @@ def profile_version(file: str | FilePath) -> str:
     return hashlib.sha256(FilePath(file).read_bytes()).hexdigest()[:12]
 
 
-def load_profile(file: str | FilePath) -> Profile:
+def load_profile(file: str | FilePath, *, check: bool = True) -> Profile:
+    """Load and validate a profile.
+
+    check=False skips the cross-file rules (ids, evidence, verified numbers) and keeps only
+    the structure check: for previews of a profile still being written, never for tailoring.
+    """
     file = str(file)
     text = FilePath(file).read_text(encoding="utf-8")
 
@@ -43,7 +48,7 @@ def load_profile(file: str | FilePath) -> Profile:
         issues = [Issue(tuple(err["loc"]), _friendly(err)) for err in e.errors()]
         raise ProfileError(file, _with_lines(issues, lines), structural=True) from e
 
-    issues = check_rules(profile)
+    issues = check_rules(profile) if check else []
     if issues:
         raise ProfileError(file, _with_lines(issues, lines))
     return profile

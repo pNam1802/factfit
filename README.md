@@ -43,7 +43,11 @@ uv run factfit llm-check                  # one tiny request: checks key, model,
 
 uv run factfit dev                        # web UI on :3000 + API on :8000 (needs Node.js)
 uv run factfit match path/to/jd.txt       # same check from the terminal
+uv run factfit tailor path/to/jd.txt      # select, rewrite and check bullets for that job
+uv run factfit render --cv output/tailored-....json   # LaTeX + PDF (needs tectonic)
 ```
+
+PDFs are built with [tectonic](https://tectonic-typesetting.github.io), a single-binary LaTeX engine that downloads packages on first use. The template [`templates/cv.tex.j2`](templates/cv.tex.j2) is Jake's Resume (MIT) with content filled in by Jinja; it still compiles on Overleaf (pdfLaTeX).
 
 Try it before your own profile validates by setting `FACTFIT_PROFILE=data/profile.example.yaml` in `.env`.
 
