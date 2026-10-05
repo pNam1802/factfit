@@ -1,0 +1,94 @@
+# Hand-written grounding cases (2026-10-05), kept apart from cases.jsonl so rebuilding the
+# generated set never overwrites them. Written to cover what the generated set lacks:
+#
+# subtle_claim (fabricated): one unsupported claim woven INTO the sentence, words only (no
+#   new digits, technologies or role verbs), the way a real rewrite slips: an inferred
+#   quality ("real-time" from 25 fps), an extra task, a purpose or a result.
+# hard_paraphrase (grounded): faithful rewrites with heavier restructuring than the generated
+#   paraphrases, to see whether a checker flags rewording as fabrication.
+#
+# Written by Claude; the claim each subtle case adds is in `adds`. Review before trusting.
+
+subtle_claim:
+  - {source: s01, adds: "real-time inferred from 25 fps",
+     text: "Built a real-time multi-camera people-tracking pipeline with YOLOv8 and ByteTrack running at 25 fps on a Jetson Orin"}
+  - {source: s01, adds: "production stores",
+     text: "Built a multi-camera people-tracking pipeline with YOLOv8 and ByteTrack running at 25 fps on a Jetson Orin in live retail stores"}
+  - {source: s02, adds: "purpose / impact on staffing",
+     text: "Contributed to a dashboard that reports store foot traffic for 3 pilot stores to guide staffing decisions"}
+  - {source: s03, adds: "actual student usage",
+     text: "Built a RAG chatbot that students use to search 1,200 lecture slides with hybrid search (BM25 + embeddings) and a reranker"}
+  - {source: s04, adds: "confirmed in user testing",
+     text: "Raised answer accuracy from 62% to 81% on a 150-question test set by adding reranking, a gain confirmed in user testing"}
+  - {source: s05, adds: "extra task (guidelines)",
+     text: "Assisted the data team in writing labeling guidelines and labeling 4,000 product images for a defect classifier"}
+  - {source: s06, adds: "beat a baseline",
+     text: "Trained an EfficientNetB0 classifier in PyTorch that outperformed the previous baseline with 93% accuracy on a held-out set"}
+  - {source: s07, adds: "low latency",
+     text: "Implemented a low-latency FastAPI service that serves an OCR model behind a REST API"}
+  - {source: s08, adds: "normalized",
+     text: "Designed a normalized data schema for a job-application tracker in SQLite"}
+  - {source: s09, adds: "extra task (evaluation)",
+     text: "Led a team of 4 students to build and evaluate a Vietnamese speech-to-text demo with Whisper"}
+  - {source: s10, adds: "caught regressions before release",
+     text: "Wrote unit tests with pytest that caught regressions before release in a data-cleaning library, raising coverage to 85%"}
+  - {source: s11, adds: "better reply quality",
+     text: "Fine-tuned a small LLM with LoRA on 2,000 customer-support conversations to produce higher-quality replies"}
+  - {source: s12, adds: "extra task (security audits)",
+     text: "Participated in code reviews and security audits for a Flask backend used by an internal HR tool"}
+  - {source: s13, adds: "enabled real-time detection",
+     text: "Reduced inference latency from 120 ms to 45 ms by exporting the detector to ONNX Runtime, enabling real-time detection"}
+  - {source: s14, adds: "sends replies (not only drafts)",
+     text: "Developed a LangGraph agent with 6 nodes that drafts and sends replies to customer emails"}
+  - {source: s15, adds: "extra step (deduplication)",
+     text: "Collected, cleaned and deduplicated 10k news articles for a Vietnamese topic classifier"}
+  - {source: s16, adds: "extra component (model registry)",
+     text: "Supported the MLOps engineer in setting up experiment tracking and a model registry with MLflow"}
+  - {source: s17, adds: "used for client presentations",
+     text: "Deployed a Streamlit demo of a face-verification model using InsightFace for client presentations"}
+  - {source: s18, adds: "fault-tolerant",
+     text: "Architected a fault-tolerant event pipeline that moves click logs from Kafka into PostgreSQL every 5 minutes"}
+  - {source: s19, adds: "extra step (validation)",
+     text: "Integrated the Gemini API with structured outputs to extract and validate fields from invoices"}
+  - {source: s20, adds: "chosen model now in production search",
+     text: "Evaluated 3 embedding models on a 500-query retrieval benchmark and picked the one now powering search"}
+  - {source: s21, adds: "any GPU server",
+     text: "Containerized a training job with Docker so teammates could reproduce results on any GPU server"}
+  - {source: s22, adds: "extra features (retries, alerting)",
+     text: "Helped migrate a cron-based scraper to Airflow DAGs with automatic retries and alerting"}
+  - {source: s23, adds: "extra work (indexes)",
+     text: "Optimized SQL queries and indexes for a reporting page, cutting load time from 8 s to 2 s"}
+  - {source: s24, adds: "interns hired full-time",
+     text: "Mentored 2 first-year interns, both later hired full-time, on Git workflows and code style"}
+  - {source: s25, adds: "live cameras instead of recorded video",
+     text: "Built a traffic-light violation detector with YOLOv8 and DeepSORT that runs on live street cameras"}
+  - {source: s26, adds: "reviewed with domain experts",
+     text: "Created a golden set of 120 question-answer pairs, reviewed with domain experts, to evaluate an internal chatbot"}
+  - {source: s27, adds: "won the hackathon",
+     text: "Took part in the winning hackathon team that prototyped a Next.js front end for a recipe recommender"}
+  - {source: s28, adds: "verified restores",
+     text: "Wrote a Bash script that backs up the lab's PostgreSQL database every night and verifies each restore"}
+  - {source: s29, adds: "high-traffic",
+     text: "Built a Redis cache in front of a high-traffic search API, raising cache hit rate to 70%"}
+  - {source: s31, adds: "real-time",
+     text: "Xây dựng pipeline nhận diện biển số xe theo thời gian thực bằng YOLOv8 và PaddleOCR"}
+  - {source: s33, adds: "in use at several clinic branches",
+     text: "Thiết kế cơ sở dữ liệu PostgreSQL cho hệ thống đặt lịch phòng khám đang vận hành tại nhiều chi nhánh"}
+
+hard_paraphrase:
+  - {source: s01, text: "Tracked people across multiple cameras with YOLOv8 + ByteTrack at 25 fps on a Jetson Orin"}
+  - {source: s03, text: "Built a chatbot answering questions from 1,200 lecture slides, retrieving with BM25 plus embeddings and reranking the results"}
+  - {source: s04, text: "Lifted answer accuracy on a 150-question test set from 62% to 81% with a reranking step"}
+  - {source: s06, text: "Trained an EfficientNetB0 image classifier (PyTorch): 93% accuracy on held-out data"}
+  - {source: s07, text: "Served an OCR model through a REST API built with FastAPI"}
+  - {source: s11, text: "Adapted a small LLM to customer support through LoRA fine-tuning on 2,000 conversations"}
+  - {source: s13, text: "Cut detector inference time from 120 ms to 45 ms through an ONNX Runtime export"}
+  - {source: s14, text: "Developed a 6-node LangGraph agent that writes draft replies to customer emails"}
+  - {source: s18, text: "Architected a pipeline loading click logs from Kafka into PostgreSQL in 5-minute batches"}
+  - {source: s20, text: "Benchmarked 3 embedding models on 500 retrieval queries"}
+  - {source: s21, text: "Made a training job reproducible for teammates by containerizing it with Docker"}
+  - {source: s23, text: "Tuned the SQL queries behind a reporting page: load time down from 8 s to 2 s"}
+  - {source: s25, text: "Detected traffic-light violations in recorded street video using YOLOv8 for detection and DeepSORT for tracking"}
+  - {source: s28, text: "Automated nightly backups of the lab's PostgreSQL database with a Bash script"}
+  - {source: s30, text: "Presented 5 findings on churn to the product team after analyzing the data in Pandas"}
+  - {source: s32, text: "Tham gia phát triển chatbot dùng LangChain và OpenAI API để hỗ trợ sinh viên"}

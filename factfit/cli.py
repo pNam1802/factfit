@@ -53,7 +53,14 @@ def main(argv: list[str] | None = None) -> int:
         help="(re)build evals/grounding/cases.jsonl; overwrites it, review the result after",
     )
     eg = commands.add_parser("eval-grounding", help="score grounding checks on the test set")
-    eg.add_argument("--show-misses", action="store_true", help="print every missed case")
+    eg.add_argument(
+        "--judges",
+        nargs="*",
+        default=[],
+        help="LLM judge configs to compare, as model:effort (e.g. gpt-5-mini:low)",
+    )
+    eg.add_argument("--show-misses", metavar="CHECKER", help="print misses of one checker")
+    eg.add_argument("--write-report", action="store_true", help="write evals/grounding/RESULTS.md")
     args = parser.parse_args(argv)
 
     if args.command == "validate-profile":
@@ -73,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "build-grounding-cases":
         return _build_grounding_cases()
     if args.command == "eval-grounding":
-        return _eval_grounding(args.show_misses)
+        return _eval_grounding(args.show_misses, args.judges, args.write_report)
     if args.command == "check-bullet":
         return _check_bullet(args.source, args.text, args.profile)
     if args.command == "export-openapi":
@@ -118,33 +125,122 @@ def _build_grounding_cases() -> int:
     return 0
 
 
-def _eval_grounding(show_misses: bool) -> int:
+def _eval_grounding(show_misses: str | None, judges: list[str], write_report: bool) -> int:
     from factfit.evals import grounding_cases as gc
     from factfit.evals import grounding_eval as ge
+    from factfit.llm import LLMError, make_client
 
     sources = gc.load_sources()
     cases = gc.load_cases()
-    results = ge.evaluate(cases, sources, ge.rules_checker)
+    checkers: dict[str, ge.Checker] = {"rules": ge.rules_checker}
+    costs: dict[str, dict] = {"rules": {"cost_per_1000": 0.0, "latency_p50_s": 0.0}}
 
-    print(f"Grounding test set: {len(cases)} cases, checker: rules (code only)\n")
-    print(f"{'type':<22}{'label':<12}{'n':>4}{'flagged':>9}{'rate':>7}   95% interval")
-    for r in results:
-        lo, hi = r.interval or (0, 0)
-        print(
-            f"{r.mutation_type:<22}{r.label:<12}{r.n:>4}{r.flagged:>9}{r.rate:>7.0%}"
-            f"   {lo:.0%} - {hi:.0%}"
-        )
-    s = ge.summary(results)
-    print(f"\nRecall on all fabricated cases: {s['recall']:.0%}")
-    print(f"False positives on valid paraphrases: {s['false_positive_rate']:.0%}")
-    print("(recall = flagged share of fabricated cases; for valid paraphrases, flagged = wrong)")
+    if judges:
+        try:
+            client = make_client()
+        except LLMError as e:
+            print(f"FAILED: {e}")
+            return 1
+        print(f"Judging {len(cases)} cases with {len(judges)} config(s)...")
+        for spec in judges:
+            cfg = ge.JudgeConfig.parse(spec)
+            verdicts = ge.judge_cases(
+                cases, sources, cfg, backend=client.backend, base_config=client.config,
+                progress=print,
+            )  # fmt: skip
+            checkers[f"judge {cfg.label}"] = ge.judge_checker(verdicts)
+            checkers[f"rules+judge {cfg.label}"] = ge.combined_checker(verdicts)
+            costs[f"judge {cfg.label}"] = costs[f"rules+judge {cfg.label}"] = ge.cost_and_latency(
+                verdicts
+            )
+
+    results = {name: ge.evaluate(cases, sources, fn) for name, fn in checkers.items()}
+    names = list(checkers)
+    short = {n: f"C{i}" for i, n in enumerate(names)}
+
+    print(f"\nGrounding test set: {len(cases)} cases. Columns:")
+    for n in names:
+        print(f"  {short[n]} = {n}")
+    header = f"\n{'type':<22}{'n':>4}" + "".join(f"{short[n]:>7}" for n in names)
+    print(header)
+    rows = list(zip(*(results[n] for n in names), strict=True))
+    for row in rows:
+        print(f"{row[0].mutation_type:<22}{row[0].n:>4}" + "".join(f"{r.rate:>7.0%}" for r in row))
+    sums = {n: ge.summary(results[n]) for n in names}
+    print(f"{'recall (fabricated)':<26}" + "".join(f"{sums[n]['recall']:>7.0%}" for n in names))
+    print(
+        f"{'false positives':<26}"
+        + "".join(f"{sums[n]['false_positive_rate']:>7.0%}" for n in names)
+    )
+    print(
+        f"{'$ per 1000 bullets':<26}"
+        + "".join(f"{_money(costs[n]['cost_per_1000']):>7}" for n in names)
+    )
+    print("(rows = share flagged; for the two paraphrase rows, flagged means a false alarm)")
 
     if show_misses:
-        for r in results:
+        target = next((n for n in names if show_misses in n), None)
+        for r in results.get(target, []):
             for case in r.misses:
                 src = " | ".join(sources[s].text for s in case.source_ids)
-                print(f"\n[{r.mutation_type}] {case.id}\n  source:  {src}\n  rewrite: {case.text}")
+                print(f"\n[{target}] [{r.mutation_type}] {case.id}\n  source:  {src}")
+                print(f"  rewrite: {case.text}")
+
+    if write_report:
+        _write_grounding_report(cases, names, results, sums, costs)
     return 0
+
+
+def _money(value: float | None) -> str:
+    return "?" if value is None else f"{value:.2f}"
+
+
+def _write_grounding_report(cases, names, results, sums, costs) -> None:
+    from datetime import date
+    from pathlib import Path
+
+    lines = [
+        "# Grounding results",
+        "",
+        f"Generated by `uv run factfit eval-grounding --write-report` on {date.today()}, "
+        f"on {len(cases)} cases (see [README](README.md) for how the set was built).",
+        "",
+        "Share of cases flagged as not grounded. For fabricated types higher is better "
+        "(recall); for the two paraphrase types lower is better (false alarms). "
+        "Brackets: 95% Wilson interval.",
+        "",
+        "| type | n | " + " | ".join(names) + " |",
+        "| --- | ---: | " + " | ".join("---" for _ in names) + " |",
+    ]
+    for row in zip(*(results[n] for n in names), strict=True):
+        cells = []
+        for r in row:
+            lo, hi = r.interval or (0, 0)
+            cells.append(f"{r.rate:.0%} ({lo:.0%}-{hi:.0%})")
+        lines.append(f"| {row[0].mutation_type} | {row[0].n} | " + " | ".join(cells) + " |")
+    lines.append(
+        "| **recall, all fabricated** | | "
+        + " | ".join(f"**{sums[n]['recall']:.0%}**" for n in names)
+        + " |"
+    )
+    lines.append(
+        "| **false alarms, all paraphrases** | | "
+        + " | ".join(f"**{sums[n]['false_positive_rate']:.0%}**" for n in names)
+        + " |"
+    )
+    lines.append(
+        "| $ per 1,000 bullets | | "
+        + " | ".join(_money(costs[n]["cost_per_1000"]) for n in names)
+        + " |"
+    )
+    lines.append(
+        "| median latency (s) | | "
+        + " | ".join(f"{costs[n]['latency_p50_s']:.1f}" for n in names)
+        + " |"
+    )
+    path = Path("evals/grounding/RESULTS.md")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    print(f"\nWrote {path}")
 
 
 def _check_bullet(source_ids: list[str], text: str, profile_path: str | None) -> int:

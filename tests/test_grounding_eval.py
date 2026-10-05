@@ -29,7 +29,7 @@ def test_test_set_is_well_formed(data):
     assert sum(c.label == "fabricated" for c in cases) >= 100
     assert len({c.id for c in cases}) == len(cases)
     assert all(s in sources for c in cases for s in c.source_ids)
-    assert all((c.label == "grounded") == (c.mutation_type == "valid_paraphrase") for c in cases)
+    assert all((c.label == "grounded") == (c.mutation_type in gc.GROUNDED_TYPES) for c in cases)
 
 
 @pytest.mark.parametrize("kind", gc.CODE_TYPES)

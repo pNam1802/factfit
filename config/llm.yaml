@@ -9,7 +9,7 @@ nodes:
   parse_jd: { model: small, prompt: v2, reasoning_effort: low } # chosen by eval-parse, 2026-10-02
   match: { model: small, prompt: v1, reasoning_effort: low }
   rewrite: { model: large }
-  judge: { model: small }
+  judge: { model: small, prompt: v1, reasoning_effort: low }
   llm_check: { model: small, reasoning_effort: minimal }
   eval_align: { model: small, prompt: v1, reasoning_effort: low } # judge for factfit eval-parse
   gen_cases: { model: small, prompt: v1, reasoning_effort: low } # writes grounding test cases

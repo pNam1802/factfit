@@ -9,8 +9,11 @@ Two origins:
     scale_inflation      bigger scope, words only (no new digits or technologies)
     unsupported_outcome  a result the source does not state, words only
     valid_paraphrase     faithful rewording, label "grounded": measures false positives
+- hand: written by a person in evals/grounding/hand_cases.yaml (never overwritten by a build)
+    subtle_claim     one unsupported claim woven into the sentence, words only
+    hard_paraphrase  faithful rewording with heavy restructuring, label "grounded"
 
-The set lives in evals/grounding/cases.jsonl and is public; sources are fictional.
+Generated cases live in evals/grounding/cases.jsonl. The set is public; sources are fictional.
 """
 
 import json
@@ -39,9 +42,13 @@ MutationType = Literal[
     "scale_inflation",
     "unsupported_outcome",
     "valid_paraphrase",
+    "subtle_claim",
+    "hard_paraphrase",
 ]
 CODE_TYPES = ("number_change", "tech_injection", "role_inflation")
 LLM_TYPES = ("scale_inflation", "unsupported_outcome", "valid_paraphrase")
+HAND_TYPES = ("subtle_claim", "hard_paraphrase")
+GROUNDED_TYPES = ("valid_paraphrase", "hard_paraphrase")
 
 TECH_POOL = ["Docker", "Kubernetes", "PyTorch", "Redis", "AWS", "TensorRT", "Kafka", "MLflow"]
 LEAD_PREFIXES = {
@@ -57,8 +64,8 @@ class Case:
     text: str
     label: Literal["grounded", "fabricated"]
     mutation_type: MutationType
-    origin: Literal["code", "llm"]
-    note: str = ""  # reviewer's remark, e.g. why an LLM case was edited
+    origin: Literal["code", "llm", "hand"]
+    note: str = ""  # what a hand case adds, or a reviewer's remark
 
 
 def load_sources(path: Path = GROUNDING_DIR / "sources.yaml") -> dict[str, Bullet]:
@@ -66,9 +73,40 @@ def load_sources(path: Path = GROUNDING_DIR / "sources.yaml") -> dict[str, Bulle
     return {b["id"]: Bullet.model_validate(b) for b in items}
 
 
-def load_cases(path: Path = GROUNDING_DIR / "cases.jsonl") -> list[Case]:
+def load_cases(root: Path = GROUNDING_DIR) -> list[Case]:
+    """The whole test set: generated cases plus hand-written ones."""
+    return load_generated(root / "cases.jsonl") + load_hand(root / "hand_cases.yaml")
+
+
+def load_generated(path: Path = GROUNDING_DIR / "cases.jsonl") -> list[Case]:
     lines = path.read_text(encoding="utf-8").splitlines()
     return [Case(**json.loads(line)) for line in lines if line.strip()]
+
+
+def load_hand(path: Path = GROUNDING_DIR / "hand_cases.yaml") -> list[Case]:
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    cases = []
+    for kind in HAND_TYPES:
+        for i, item in enumerate(data.get(kind, []), start=1):
+            # An unquoted comma inside a {...} entry silently splits the text into an extra
+            # key; reject anything but the expected keys so that cannot go unnoticed.
+            extra = set(item) - {"source", "adds", "text"}
+            if extra:
+                raise ValueError(f"{path}: {kind} #{i} has unexpected keys {extra}; quote the text")
+            label = "grounded" if kind in GROUNDED_TYPES else "fabricated"
+            case_id = f"h{'s' if kind == 'subtle_claim' else 'p'}{i:03d}"
+            cases.append(
+                Case(
+                    case_id,
+                    [item["source"]],
+                    item["text"],
+                    label,
+                    kind,
+                    "hand",
+                    item.get("adds", ""),
+                )
+            )
+    return cases
 
 
 def save_cases(cases: list[Case], path: Path = GROUNDING_DIR / "cases.jsonl") -> None:
