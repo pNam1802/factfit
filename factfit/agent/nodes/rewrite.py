@@ -12,6 +12,7 @@ Every bullet that leaves this module is grounded: either it passed both checks, 
 source text itself.
 """
 
+import re
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -19,7 +20,7 @@ from dataclasses import dataclass, field
 from factfit.agent.nodes.select import SelectedEntry
 from factfit.grounding.judge import judge_bullet
 from factfit.grounding.rules import KnowledgeBase, check_bullet, load_kb
-from factfit.llm import LLMClient
+from factfit.llm import LLMClient, LLMError
 from factfit.prompts import load_prompt
 from factfit.schemas.base import Strict
 from factfit.schemas.job import JobDescription
@@ -125,10 +126,65 @@ def check_draft(
         return
     issues = [i.message for i in check_bullet(draft.text, [draft.source], kb)]
     if use_judge and (all_problems or not issues):
-        verdict = judge_bullet(draft.text, [draft.source], client, run_id=run_id)
-        issues += [f"{c.kind}: '{c.claim}' ({c.why})" for c in verdict.unsupported_claims]
+        try:
+            verdict = judge_bullet(draft.text, [draft.source], client, run_id=run_id)
+        except LLMError as e:
+            # Unchecked is not passed: the bullet is retried, then falls back to its source
+            # text, which is always grounded. One network failure must not stop the run.
+            issues.append(f"could not run the judge, so this rewrite is not trusted: {e}")
+        else:
+            issues += [f"{c.kind}: '{c.claim}' ({c.why})" for c in verdict.unsupported_claims]
     draft.issues = issues
     draft.passed = not draft.issues
+
+
+_NAME_DROP_OPENING = re.compile(
+    r"^(used|using|utili[sz]ed|leveraged|applied|employed)\b", re.IGNORECASE
+)
+
+
+def style_problems(drafts: list[Draft], pending: list[Draft], kb: KnowledgeBase) -> None:
+    """Flag rewrites that read like keyword stuffing, even when every word is true.
+
+    Seen in real runs: the same JD term taken from bullets' skills lists ("Python") was put
+    into every bullet of an entry, and openings became "Used Python to build ...". Within
+    one entry, a technology the source sentence does not name may be added to one bullet
+    only; and a rewrite may not open with "Used / Leveraged ..." unless its source does.
+    Checks only grounded drafts in `pending`; adds problems and marks them failed.
+    """
+    seen: dict[int, dict[str, str]] = {}  # entry -> technology added -> bullet that added it
+
+    def added(d: Draft) -> set[str]:
+        in_text = {str(c) for _, c in kb.tech.find(d.source.text)}
+        return {str(c) for _, c in kb.tech.find(d.text)} - in_text
+
+    pending_ids = {id(d) for d in pending}
+    for d in drafts:  # bullets that already passed claim their additions first
+        if id(d) not in pending_ids and d.passed and not d.fallback:
+            for tech in added(d):
+                seen.setdefault(id(d.entry), {}).setdefault(tech, d.source.id)
+    for d in pending:
+        if not d.passed:
+            continue
+        problems = []
+        entry_seen = seen.setdefault(id(d.entry), {})
+        new = added(d)
+        for tech in sorted(new):
+            if tech in entry_seen:
+                problems.append(
+                    f"style: '{tech}' is already added to {entry_seen[tech]} in this entry; "
+                    "add a term from the skills list to one bullet per entry at most"
+                )
+        if _NAME_DROP_OPENING.match(d.text) and not _NAME_DROP_OPENING.match(d.source.text):
+            problems.append(
+                "style: the rewrite opens with a tool name ('Used X to ...'); keep the "
+                "source's opening verb"
+            )
+        if problems:
+            d.issues, d.passed = d.issues + problems, False
+        else:
+            for tech in new:
+                entry_seen.setdefault(tech, d.source.id)
 
 
 def rewrite_and_check(
@@ -172,6 +228,7 @@ def rewrite_and_check(
                     pending,
                 )
             )
+            style_problems(drafts, pending, kb)
             for d in pending:
                 if not d.passed:
                     d.history.append((d.text, d.issues))

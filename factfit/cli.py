@@ -69,6 +69,11 @@ def main(argv: list[str] | None = None) -> int:
         "build-grounding-cases",
         help="(re)build evals/grounding/cases.jsonl; overwrites it, review the result after",
     )
+    er = commands.add_parser("eval-rewrite", help="compare rewrite prompts on real JDs")
+    er.add_argument("--prompts", nargs="+", default=["v1", "v2"])
+    er.add_argument("--split", default="dev")
+    er.add_argument("--profile", default="data/profile.yaml")
+    er.add_argument("--unchecked", action="store_true", help="allow a profile that fails the rules")
     eg = commands.add_parser("eval-grounding", help="score grounding checks on the test set")
     eg.add_argument(
         "--judges",
@@ -98,6 +103,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_dev(api_port=args.api_port, ui_port=args.ui_port)
     if args.command == "build-grounding-cases":
         return _build_grounding_cases()
+    if args.command == "eval-rewrite":
+        return _eval_rewrite(args.prompts, args.split, args.profile, args.unchecked)
     if args.command == "eval-grounding":
         return _eval_grounding(args.show_misses, args.judges, args.write_report)
     if args.command == "check-bullet":
@@ -143,6 +150,82 @@ def _build_grounding_cases() -> int:
     for kind, n in counts.items():
         print(f"  {kind:<22}{n}")
     print("\nNext: review the llm cases (labels must be right), then run factfit eval-grounding.")
+    return 0
+
+
+def _eval_rewrite(prompts: list[str], split: str, profile_path: str, unchecked: bool) -> int:
+    from pathlib import Path
+
+    from sqlmodel import Session
+
+    from factfit.agent.nodes.match import match_job
+    from factfit.agent.nodes.parse_jd import parse_jd
+    from factfit.db import init_db, make_engine
+    from factfit.evals import rewrite_eval as re_
+    from factfit.llm import LLMError, make_client
+    from factfit.profile import ProfileError, load_profile, profile_version
+
+    try:
+        profile = load_profile(profile_path, check=not unchecked)
+    except ProfileError:
+        print(f"{profile_path} is not valid; add --unchecked to evaluate with it anyway.")
+        return 1
+    files = sorted(Path("evals/jds", split).glob("*.txt"))
+    if not files:
+        print(f"No job descriptions in evals/jds/{split}")
+        return 1
+    engine = make_engine()
+    init_db(engine)
+    try:
+        client = make_client(engine=engine)
+    except LLMError as e:
+        print(f"FAILED: {e}")
+        return 1
+
+    cases = []
+    with Session(engine) as session:  # parse and match are cached; only rewrites are compared
+        for f in files:
+            parsed = parse_jd(f.read_text(encoding="utf-8"), client=client, session=session)
+            jd = parsed.jd
+            level = jd.seniority if jd.seniority != "unknown" else None
+            matched = match_job(
+                parsed.job, profile, profile_version=profile_version(profile_path),
+                client=client, session=session, level=level,
+            )  # fmt: skip
+            cases.append((f.stem, jd, matched.result))
+
+    results = {}
+    for prompt in prompts:
+        print(f"prompt {prompt}:")
+        results[prompt] = re_.run_prompt(
+            prompt, cases, profile, backend=client.backend, base_config=client.config,
+            progress=print,
+        )  # fmt: skip
+
+    def pct(k: int, n: int) -> str:
+        return f"{k}/{n} ({k / n:.0%})" if n else "-"
+
+    print(
+        f"\n{len(cases)} JDs, one run each. First attempt = what the prompt writes before retries."
+    )
+    print(f"{'':<34}" + "".join(f"{p:>18}" for p in prompts))
+    rows = [
+        ("first attempt: stuffing", "stuffing"),
+        ("first attempt: 'Used X to' opening", "name_drop"),
+        ("passed on first attempt", "first_pass"),
+        ("passed after a retry", "retried"),
+        ("fell back to the original", "fallback"),
+        ("left unchanged", "unchanged"),
+    ]
+    for label, attr in rows:
+        cells = "".join(
+            f"{pct(getattr(results[p], attr), results[p].bullets):>18}" for p in prompts
+        )
+        print(f"{label:<34}{cells}")
+    print(f"{'cost':<34}" + "".join(f"{'$' + format(results[p].cost, '.3f'):>18}" for p in prompts))
+    for p in prompts:
+        for example in results[p].examples[:4]:
+            print(f"  {p} {example}")
     return 0
 
 

@@ -172,3 +172,68 @@ def test_tailor_assembles_an_exportable_cv():
     assert run.cv.summary.source_ids == ["sum_llm"]
     assert [s.ref for s in run.cv.sections] == ["exp_a", "p_rag"]
     assert run.cv.sections[1].bullets[0].source_bullet_ids == ["b5"]
+
+
+def drafts_with(texts: dict[str, str]):
+    """Drafts for exp_a's bullets with given rewrites, all grounded (passed)."""
+    from factfit.agent.nodes.rewrite import Draft
+
+    entry = select_bullets(PROFILE, JD, MATCH, config=CONFIG)[0]
+    bullets = {b.id: b for b in PROFILE.experiences[0].bullets}
+    out = []
+    for sid, text in texts.items():
+        d = Draft(entry, bullets[sid], text=text)
+        d.passed = True
+        out.append(d)
+    return out
+
+
+def test_style_flags_the_same_added_term_in_a_second_bullet():
+    from factfit.agent.nodes.rewrite import style_problems
+
+    # Allowed: one bullet adds a term its sentence lacks; another already names it.
+    d1, d2 = drafts_with(
+        {"b1": "Built a YOLOv8 tracker running at 25 fps", "b2": "Contributed to a FastAPI service"}
+    )
+    d1.text = "Built a FastAPI-served YOLOv8 tracker running at 25 fps"  # FastAPI not in b1 text
+    d2.text = "Contributed to a service built with FastAPI"  # FastAPI is in b2's own text: fine
+    style_problems([d1, d2], [d1, d2], load_kb())
+    assert d1.passed and d2.passed
+
+    d3, d4 = drafts_with(
+        {
+            "b1": "Built a YOLOv8 tracker in Python at 25 fps",
+            "b2": "Contributed to a Python service",
+        }
+    )
+    style_problems([d3, d4], [d3, d4], load_kb())
+    assert d3.passed  # the first bullet may add it
+    assert not d4.passed and "already added to b1" in d4.issues[0]
+
+
+def test_style_flags_name_drop_openings():
+    from factfit.agent.nodes.rewrite import style_problems
+
+    (d,) = drafts_with({"b1": "Used YOLOv8 to build a tracker running at 25 fps"})
+    style_problems([d], [d], load_kb())
+    assert not d.passed and "opens with a tool name" in d.issues[0]
+
+
+def test_a_judge_failure_falls_back_instead_of_stopping_the_run():
+    from factfit.llm.backends import TransientLLMError
+
+    class JudgeDown(ScriptedBackend):
+        def complete(self, *, node, model, system, user, schema, options):
+            if schema.__name__ == "JudgeVerdict":
+                raise TransientLLMError("Connection error")
+            return super().complete(
+                node=node, model=model, system=system, user=user, schema=schema, options=options
+            )
+
+    selected = select_bullets(PROFILE, JD, MATCH, config=CONFIG)[:1]
+    backend = JudgeDown([{"b1": "Built a YOLOv8 tracker at 25 fps"}] * 2)
+    client = LLMClient(backend, LLM_CONFIG.model_copy(update={"max_retries": 0}))
+    client.sleep = lambda s: None
+    drafts = rewrite_and_check(selected, jd=JD, match=MATCH, client=client, workers=1)
+    assert all(d.fallback and d.text == d.source.text for d in drafts)
+    assert "could not run the judge" in drafts[0].history[0][1][0]

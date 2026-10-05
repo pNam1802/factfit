@@ -26,7 +26,13 @@ from sqlmodel import Session
 
 from factfit.agent.nodes.match import match_job
 from factfit.agent.nodes.parse_jd import parse_jd
-from factfit.agent.nodes.rewrite import MAX_ATTEMPTS, Draft, check_draft, rewrite_entry
+from factfit.agent.nodes.rewrite import (
+    MAX_ATTEMPTS,
+    Draft,
+    check_draft,
+    rewrite_entry,
+    style_problems,
+)
 from factfit.agent.nodes.select import ScoredBullet, SelectedEntry, select_bullets
 from factfit.agent.tailor import assemble
 from factfit.db.models import Job
@@ -199,6 +205,7 @@ def build_graph(*, client: LLMClient, engine: Engine, checkpointer=None):
                     lambda d: check_draft(d, client=client, kb=kb, use_judge=use_judge), pending
                 )
             )
+        style_problems(drafts, pending, kb)
         for d in pending:
             if not d.passed:
                 d.history.append((d.text, d.issues))
