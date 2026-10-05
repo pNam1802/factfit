@@ -42,3 +42,17 @@ next. The first place the agent decides whether to call a tool is company resear
 - Cost: one more framework to learn and keep up with; for a graph this small, a hand-written
   loop would also have worked. Revisit if LangGraph upgrades break the graph more than once,
   or if the human-review pause turns out to be simpler to model as two separate API calls.
+
+## Follow-up (2026-10-05)
+
+Built as planned (`factfit/agent/graph.py`, LangGraph 1.2). What held up and what was added:
+
+- `interrupt()` + a SQLite checkpointer did what this decision bet on: a test rebuilds the
+  graph and checkpointer from the same file, as after a restart, and resumes the review.
+- The state holds JSON only, and each node rebuilds objects from it and calls the same plain
+  functions as the CLI, so no logic depends on the graph.
+- The profile is copied into the state when a run starts, so editing `profile.yaml` during a
+  review cannot change a run in progress.
+- A review node runs again from its start when resumed; it only builds the payload, no side
+  effects before `interrupt()`.
+- Measured: draft ready for review 13 s after pasting a JD whose parse and match were cached.

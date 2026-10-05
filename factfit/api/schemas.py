@@ -64,3 +64,51 @@ class MatchOut(BaseModel):
 class ErrorOut(BaseModel):
     detail: str
     issues: list[str] = []
+
+
+# --- tailoring runs ----------------------------------------------------------------------------
+
+RunState = Literal["running", "waiting_review", "done", "error", "not_found"]
+
+
+class TailorRequest(Strict):
+    level: Seniority | None = None
+    use_judge: bool = True
+
+
+class RunOut(BaseModel):
+    run_id: str
+    status: RunState
+
+
+class ReviewDecisionIn(Strict):
+    source_id: str
+    action: Literal["accept", "edit", "reject"]
+    text: str | None = None
+
+
+class ReviewRequest(Strict):
+    decisions: list[ReviewDecisionIn] = []  # bullets left out are accepted
+
+
+class DraftOut(BaseModel):
+    source_id: str
+    entry_id: str
+    original: str
+    text: str
+    attempts: int
+    issues: list[str]
+    history: list[list]  # [rejected text, [problems]] per failed attempt
+    passed: bool
+    fallback: bool
+    user_edited: bool = False
+    user_rejected: bool = False
+
+
+class RunStatusOut(BaseModel):
+    run_id: str
+    status: RunState
+    drafts: list[DraftOut] = []
+    review_errors: dict[str, list[str]] = {}  # source_id -> why an edit was refused
+    cv: dict | None = None  # TailoredCV once done
+    error: str | None = None

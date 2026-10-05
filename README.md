@@ -2,7 +2,7 @@
 
 > LangGraph agent that tailors LaTeX CVs to job descriptions — every bullet traced to a verified profile, with a 3-layer hallucination check.
 
-**Status:** 🚧 Work in progress (week 2 of 6 done). Metrics, demo, and setup instructions will land here once the MVP runs end-to-end.
+**Status:** 🚧 Work in progress (week 3 of 6 done). Metrics, demo, and setup instructions will land here once the MVP runs end-to-end.
 
 ## Why
 
@@ -55,7 +55,7 @@ Set `FACTFIT_LLM_MODE=mock` to answer from saved fixtures in `evals/fixtures/` w
 
 - [x] Week 1 — profile schema, LLM client, data model ([design decisions](docs/adr/))
 - [x] Week 2 — JD parsing (with an eval harness) and matching, first web UI
-- [ ] Week 3 — rewrite + grounding check, with a 200+ case eval set
+- [x] Week 3 — rewrite + grounding check as a LangGraph agent with human review; [grounding results](evals/grounding/RESULTS.md) on a 272-case public set
 - [ ] Week 4 — review UI, LaTeX export, application tracker
 - [ ] Week 5–6 — eval report (ablation, model comparison), Docker demo without API key
 

@@ -78,6 +78,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jobs/{job_id}/tailor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Tailor
+         * @description Start tailoring a CV for a parsed job; it pauses when drafts are ready for review.
+         */
+        post: operations["start_tailor_jobs__job_id__tailor_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run
+         * @description Where a run is, with its drafts once they are ready for review.
+         */
+        get: operations["get_run_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/runs/{run_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review
+         * @description Accept, edit or reject each draft. Edits are checked; a failing edit comes back.
+         */
+        post: operations["review_runs__run_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/runs/{run_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Events
+         * @description Server-sent events: one per finished step, then the run's status.
+         */
+        get: operations["run_events_runs__run_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -93,6 +173,37 @@ export interface components {
             company?: string | null;
             /** Url */
             url?: string | null;
+        };
+        /** DraftOut */
+        DraftOut: {
+            /** Source Id */
+            source_id: string;
+            /** Entry Id */
+            entry_id: string;
+            /** Original */
+            original: string;
+            /** Text */
+            text: string;
+            /** Attempts */
+            attempts: number;
+            /** Issues */
+            issues: string[];
+            /** History */
+            history: unknown[][];
+            /** Passed */
+            passed: boolean;
+            /** Fallback */
+            fallback: boolean;
+            /**
+             * User Edited
+             * @default false
+             */
+            user_edited: boolean;
+            /**
+             * User Rejected
+             * @default false
+             */
+            user_rejected: boolean;
         };
         /** ErrorOut */
         ErrorOut: {
@@ -225,6 +336,74 @@ export interface components {
             note: string;
             /** Evidence */
             evidence: components["schemas"]["Evidence"][];
+        };
+        /** ReviewDecisionIn */
+        ReviewDecisionIn: {
+            /** Source Id */
+            source_id: string;
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "accept" | "edit" | "reject";
+            /** Text */
+            text?: string | null;
+        };
+        /** ReviewRequest */
+        ReviewRequest: {
+            /**
+             * Decisions
+             * @default []
+             */
+            decisions: components["schemas"]["ReviewDecisionIn"][];
+        };
+        /** RunOut */
+        RunOut: {
+            /** Run Id */
+            run_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "waiting_review" | "done" | "error" | "not_found";
+        };
+        /** RunStatusOut */
+        RunStatusOut: {
+            /** Run Id */
+            run_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "waiting_review" | "done" | "error" | "not_found";
+            /**
+             * Drafts
+             * @default []
+             */
+            drafts: components["schemas"]["DraftOut"][];
+            /**
+             * Review Errors
+             * @default {}
+             */
+            review_errors: {
+                [key: string]: string[];
+            };
+            /** Cv */
+            cv?: {
+                [key: string]: unknown;
+            } | null;
+            /** Error */
+            error?: string | null;
+        };
+        /** TailorRequest */
+        TailorRequest: {
+            /** Level */
+            level?: ("intern" | "fresher" | "junior" | "mid" | "senior" | "unknown") | null;
+            /**
+             * Use Judge
+             * @default true
+             */
+            use_judge: boolean;
         };
         /** ValidationError */
         ValidationError: {
@@ -401,6 +580,156 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    start_tailor_jobs__job_id__tailor_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TailorRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    get_run_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_runs__run_id__review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunStatusOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_events_runs__run_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
