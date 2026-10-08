@@ -352,7 +352,13 @@ def create_app(
         except RenderError as e:
             status = 503 if "not found on PATH" in str(e) else 422
             raise HTTPException(status_code=status, detail=str(e)) from e
-        rendered = {"pages": out.pages, "issues": out.issues, "warnings": out.warnings}
+        # Rebuilds render the CV as it is: already shortened when the review finished.
+        rendered = {
+            "pages": out.pages,
+            "issues": out.issues,
+            "warnings": out.warnings,
+            "trimmed": (values.get("render") or {}).get("trimmed", []),
+        }
         # Record the rebuild in the run, so GET /runs/{id} shows the PDF that is on disk.
         graph.update_state(run_config(run_id), {"render": rendered}, as_node="render")
         return render_out(run_id, rendered)
@@ -364,6 +370,7 @@ def create_app(
             ats_ok=not rendered["issues"],
             issues=rendered["issues"],
             warnings=rendered["warnings"],
+            trimmed=rendered.get("trimmed", []),
             pdf_url=f"/runs/{run_id}/cv.pdf",
             tex_url=f"/runs/{run_id}/cv.tex",
         )

@@ -7,7 +7,8 @@
                                                   +--(ok)--> assemble -> render -> END
 
 render compiles the PDF and runs the ATS check (only when the graph is given an output
-directory). A compile failure is recorded in the state, not raised: the reviewed CV is kept.
+directory); a CV over one page is shortened first (factfit.agent.fit). A compile failure is
+recorded in the state, not raised: the reviewed CV is kept.
 
 The state holds JSON only (dicts, lists, strings), so the SQLite checkpointer can save it and
 a paused run can be resumed after a restart. Each node rebuilds objects from that JSON and
@@ -28,6 +29,7 @@ from langgraph.types import interrupt
 from sqlalchemy import Engine
 from sqlmodel import Session
 
+from factfit.agent.fit import fit_one_page
 from factfit.agent.nodes.match import match_job
 from factfit.agent.nodes.parse_jd import parse_jd
 from factfit.agent.nodes.rewrite import (
@@ -66,7 +68,7 @@ class TailorState(TypedDict, total=False):
     decisions: list[dict]  # what the person sent at the last review
     review_errors: dict[str, list[str]]  # source_id -> why an edit was refused
     cv: dict  # TailoredCV, once assembled
-    render: dict  # {pages, issues, warnings} of the compiled PDF, or {error}
+    render: dict  # {pages, issues, warnings, trimmed} of the compiled PDF, or {error}
 
 
 class ReviewDecision(Strict):
@@ -307,16 +309,30 @@ def build_graph(
 
     def render(state: TailorState, config: RunnableConfig) -> dict:
         # The profile copied when the run started: the PDF matches what was reviewed.
+        # A CV over one page is shortened (lowest-scoring bullets first) and rendered again.
+        scores = {b["id"]: b["score"] for s in state["selected"] for b in s["bullets"]}
         try:
-            out = render_tailored(
+            fitted = fit_one_page(
                 _profile(state),
                 TailoredCV.model_validate(state["cv"]),
+                JobDescription.model_validate(state["jd"]),
+                kb,
+                scores,
                 output_dir / "runs" / _run_id(config),
-                state.get("jd", {}).get("keywords", []),
+                render=lambda *args: render_tailored(*args),  # looked up at call time (tests)
             )
         except RenderError as e:
             return {"render": {"error": str(e)}}
-        return {"render": {"pages": out.pages, "issues": out.issues, "warnings": out.warnings}}
+        out = fitted.render
+        return {
+            "cv": fitted.cv.model_dump(mode="json"),
+            "render": {
+                "pages": out.pages,
+                "issues": out.issues,
+                "warnings": out.warnings,
+                "trimmed": fitted.removed,
+            },
+        }
 
     g = StateGraph(TailorState)
     for name, fn in [

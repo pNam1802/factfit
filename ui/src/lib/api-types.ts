@@ -568,6 +568,11 @@ export interface components {
             issues: string[];
             /** Warnings */
             warnings: string[];
+            /**
+             * Trimmed
+             * @default []
+             */
+            trimmed: string[];
             /** Pdf Url */
             pdf_url: string;
             /** Tex Url */

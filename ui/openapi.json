@@ -1565,6 +1565,14 @@
             "type": "array",
             "title": "Warnings"
           },
+          "trimmed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Trimmed",
+            "default": []
+          },
           "pdf_url": {
             "type": "string",
             "title": "Pdf Url"

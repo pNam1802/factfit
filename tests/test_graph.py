@@ -219,7 +219,7 @@ def test_the_pdf_is_built_when_the_review_finishes(env, tmp_path, monkeypatch):
     monkeypatch.setattr("factfit.agent.graph.render_tailored", fake_render)
     graph = start(env, FakeBackend(), output_dir=tmp_path / "out")
     done = resume(graph, [])
-    assert done["render"] == {"pages": 1, "issues": [], "warnings": ["w"]}
+    assert done["render"] == {"pages": 1, "issues": [], "warnings": ["w"], "trimmed": []}
     assert built == [(tmp_path / "out" / "runs" / "run1", ["YOLOv8"])]
 
 
@@ -234,3 +234,19 @@ def test_a_failed_compile_keeps_the_reviewed_cv(env, tmp_path, monkeypatch):
     done = resume(graph, [])
     assert done["status"] == "done" and done["cv"]
     assert "not found" in done["render"]["error"]
+
+
+def test_a_cv_over_one_page_is_shortened_until_it_fits(env, tmp_path, monkeypatch):
+    from factfit.render.compile import TailoredRender
+
+    def two_bullets_per_page(profile, cv, out_dir, keywords):
+        pages = 2 if len(cv.all_bullets()) > 1 else 1
+        return TailoredRender(pages=pages, issues=[] if pages == 1 else ["2 pages"], warnings=[])
+
+    monkeypatch.setattr("factfit.agent.graph.render_tailored", two_bullets_per_page)
+    graph = start(env, FakeBackend(), output_dir=tmp_path / "out")
+    done = resume(graph, [])
+    assert done["render"]["pages"] == 1 and done["render"]["issues"] == []
+    # b1 proves the must-have requirement, b2 proves nothing: b2 goes.
+    assert [b["source_bullet_ids"] for b in done["cv"]["sections"][0]["bullets"]] == [["b1"]]
+    assert "FastAPI" in done["render"]["trimmed"][0]

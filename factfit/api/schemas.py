@@ -119,6 +119,7 @@ class RenderOut(BaseModel):
     ats_ok: bool
     issues: list[str]  # block sending: unreadable text, more than one page, ...
     warnings: list[str]
+    trimmed: list[str] = []  # what was removed so the CV fits on one page
     pdf_url: str
     tex_url: str
 

@@ -807,6 +807,22 @@ function ExportView({
             </CheckRow>
           </Panel>
 
+          {rendered.trimmed.length > 0 && (
+            <Panel className="gap-2.5">
+              <PanelTitle>Shortened to fit one page</PanelTitle>
+              <p className="-mt-1 text-sm text-muted-foreground">
+                The least relevant items for this job were left out. Their text is unchanged in
+                your profile.
+              </p>
+              <ul className="flex flex-col gap-1.5 text-sm">
+                {rendered.trimmed.map((t) => (
+                  <li key={t} className="rounded-md bg-muted/60 px-2.5 py-1.5">
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
           {rendered.issues.length > 0 && (
             <Panel className="gap-3">
               <PanelTitle>Fix before sending</PanelTitle>
