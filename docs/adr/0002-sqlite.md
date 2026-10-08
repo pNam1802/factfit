@@ -41,8 +41,21 @@ in the database itself, not only in Python:
 
 - No database server to install; tests use a temporary file per test.
 - Adding a field to a Pydantic schema needs no migration, because it lives inside a JSON column.
-- Changing a real column does need a migration; none is set up yet (add Alembic when the first one
-  is needed).
+- Changing a real column does need a migration (see the follow-up below).
 - One writer at a time: fine for one user, wrong for a hosted multi-user version. Moving to
   PostgreSQL later is mostly a connection-string change because access goes through SQLModel,
   but the trigger would need rewriting.
+
+## Follow-up (2026-10-08): Alembic
+
+Added before the first real application is stored, since from then on the database cannot
+be thrown away and recreated.
+
+- Migrations live in `factfit/db/migrations/`; `init_db` runs `upgrade head` itself, so the
+  app, the CLI and the tests all get the same schema. Write a new one with
+  `uv run alembic revision --autogenerate -m "..."`, then check it by hand.
+- `0001` is the baseline: the tables as they stood, plus the `cv_versions` immutability
+  trigger, which autogenerate cannot see. Databases made before migrations are detected (tables
+  but no recorded version), brought up to the baseline and stamped, keeping their rows.
+- `tests/test_migrations.py` fails when a model changes without a migration.
+- SQLite cannot alter most columns in place, so migrations run in batch mode (copy the table).

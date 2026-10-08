@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import JSON, Column, event, text
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
 
@@ -73,7 +73,8 @@ class CVVersion(SQLModel, table=True):
     """A rendered CV. Rows are immutable: a database trigger rejects any UPDATE.
 
     To change a CV, create a new version. This guarantees the CV linked to an
-    application is exactly what was sent.
+    application is exactly what was sent. The trigger is created by the baseline migration
+    (factfit/db/migrations/versions/0001_baseline_schema.py).
     """
 
     __tablename__ = "cv_versions"
@@ -133,20 +134,3 @@ class LLMCall(SQLModel, table=True):
     ok: bool = True
     error: str | None = None
     created_at: datetime = Field(default_factory=_now)
-
-
-# Enforced by SQLite itself, so no code path (ORM, raw SQL, a future script) can edit a sent CV.
-_IMMUTABLE_CV = text(
-    """
-    CREATE TRIGGER IF NOT EXISTS cv_versions_immutable
-    BEFORE UPDATE ON cv_versions
-    BEGIN
-        SELECT RAISE(ABORT, 'cv_versions rows are immutable; create a new version instead');
-    END;
-    """
-)
-
-
-@event.listens_for(CVVersion.__table__, "after_create")
-def _create_immutable_trigger(target, connection, **kw):
-    connection.execute(_IMMUTABLE_CV)
