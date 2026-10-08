@@ -45,7 +45,12 @@ uv run factfit dev                        # web UI on :3000 + API on :8000 (need
 uv run factfit match path/to/jd.txt       # same check from the terminal
 uv run factfit tailor path/to/jd.txt      # select, rewrite and check bullets for that job
 uv run factfit render --cv output/tailored-....json   # LaTeX + PDF (needs tectonic)
+uv run factfit cost                       # cost of recent tailoring runs, by step and model
 ```
+
+In the web UI, finishing the review builds the PDF; "Mark as applied" then saves the application with a frozen copy of that CV (a database trigger refuses edits), and the Applications page tracks its status. Manual applications can be added too, as a baseline.
+
+The database schema is managed with Alembic: the app migrates `data/factfit.db` on start. After changing a model, write a migration with `uv run alembic revision --autogenerate -m "..."` and read it before committing.
 
 PDFs are built with [tectonic](https://tectonic-typesetting.github.io), a single-binary LaTeX engine that downloads packages on first use. The template [`templates/cv.tex.j2`](templates/cv.tex.j2) is Jake's Resume (MIT) with content filled in by Jinja; it still compiles on Overleaf (pdfLaTeX).
 
@@ -60,7 +65,7 @@ Set `FACTFIT_LLM_MODE=mock` to answer from saved fixtures in `evals/fixtures/` w
 - [x] Week 1 — profile schema, LLM client, data model ([design decisions](docs/adr/))
 - [x] Week 2 — JD parsing (with an eval harness) and matching, first web UI
 - [x] Week 3 — rewrite + grounding check as a LangGraph agent with human review; [grounding results](evals/grounding/RESULTS.md) on a 272-case public set
-- [ ] Week 4 — review UI, LaTeX export, application tracker
+- [x] Week 4 — review UI, LaTeX export with an ATS read-back check, application tracker
 - [ ] Week 5–6 — eval report (ablation, model comparison), Docker demo without API key
 
 ## License

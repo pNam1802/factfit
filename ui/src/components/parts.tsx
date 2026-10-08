@@ -32,10 +32,12 @@ export function StatusPill({
   tone,
   children,
   className,
+  icon = true,
 }: {
   tone: Tone;
   children: ReactNode;
   className?: string;
+  icon?: boolean; // off where the word alone is the status (application stages)
 }) {
   return (
     <span
@@ -45,7 +47,7 @@ export function StatusPill({
         className,
       )}
     >
-      {TONE[tone].icon}
+      {icon && TONE[tone].icon}
       {children}
     </span>
   );

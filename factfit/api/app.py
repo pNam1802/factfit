@@ -33,7 +33,7 @@ from factfit.agent.graph import (
     run_status,
 )
 from factfit.agent.nodes.match import match_job, profile_items
-from factfit.agent.nodes.parse_jd import parse_jd
+from factfit.agent.nodes.parse_jd import get_or_create_company, parse_jd
 from factfit.api.schemas import (
     ApplicationOut,
     ApplicationUpdate,
@@ -405,8 +405,10 @@ def create_app(
 
     versions_dir = output_root / "cv_versions"
 
-    def check_duplicates(session: Session, job: Job, confirmed: bool) -> None:
-        found = tracker.possible_duplicates(session, job)
+    def check_duplicates(
+        session: Session, company_id: int | None, job_id: int | None, confirmed: bool
+    ) -> None:
+        found = tracker.possible_duplicates(session, company_id=company_id, job_id=job_id)
         if found and not confirmed:
             raise NeedsConfirmation(
                 "duplicate",
@@ -447,7 +449,7 @@ def create_app(
         if not values.get("cv") or "pages" not in rendered:
             raise HTTPException(status_code=409, detail="finish the review and build the PDF first")
         job = session.get(Job, values["job_id"])
-        check_duplicates(session, job, body.confirm_duplicate)
+        check_duplicates(session, job.company_id, job.id, body.confirm_duplicate)
         if body.status == "applied" and rendered["issues"] and not body.confirm_ats:
             raise NeedsConfirmation(
                 "ats",
@@ -480,10 +482,13 @@ def create_app(
     )
     def add_manual_application(body: ManualApplication, session: SessionDep) -> ApplicationOut:
         """Record an application made without factfit (the manual baseline). No LLM call."""
+        # Check before creating the job, so a refused request leaves nothing behind.
+        company = get_or_create_company(session, body.company)
+        known = tracker.job_with_text(session, body.jd_text)
+        check_duplicates(session, company.id, known and known.id, body.confirm_duplicate)
         job = tracker.manual_job(
             session, company=body.company, title=body.title, url=body.url, jd_text=body.jd_text
         )
-        check_duplicates(session, job, body.confirm_duplicate)
         applied_at = (
             datetime.combine(body.applied_on, datetime.min.time(), tzinfo=UTC)
             if body.applied_on

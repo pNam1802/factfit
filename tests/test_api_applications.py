@@ -89,3 +89,14 @@ def test_manual_application_and_status_changes(api):  # noqa: F811
     assert noted["notes"] == "HR call" and noted["status"] == "interview"
     assert client.patch("/applications/999", json={"notes": "x"}).status_code == 404
     assert client.post("/applications", json=body).json()["code"] == "duplicate"
+
+
+def test_a_refused_manual_application_leaves_no_job_behind(api):  # noqa: F811
+    client, _ = api
+    body = {"company": "XYZ", "title": "ML Intern"}
+    client.post("/applications", json=body)
+    jobs_before = len({a["job_id"] for a in client.get("/applications").json()})
+    assert client.post("/applications", json=body).status_code == 409
+    again = client.post("/applications", json={**body, "confirm_duplicate": True}).json()
+    jobs = {a["job_id"] for a in client.get("/applications").json()}
+    assert len(jobs) == jobs_before + 1 and again["job_id"] == max(jobs)

@@ -23,6 +23,7 @@ import {
   StatusPill,
   type Tone,
 } from "@/components/parts";
+import { SaveApplication } from "@/components/save-application";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -413,6 +414,7 @@ export function TailorReview({ jobId, level, onStage }: Props) {
           {error && <ErrorBox error={error} />}
           {rendered ? (
             <ExportView
+              runId={runId ?? ""}
               rendered={rendered}
               version={pdfVersion}
               built={built}
@@ -708,12 +710,14 @@ function Words({ tokens }: { tokens: Token[] }) {
 type Built = { at: Date; seconds: number | null }; // seconds: only known for a rebuild
 
 function ExportView({
+  runId,
   rendered,
   version,
   built,
   rendering,
   onRebuild,
 }: {
+  runId: string;
   rendered: Rendered;
   version: number;
   built: Built | null;
@@ -786,6 +790,7 @@ function ExportView({
 
       <div className="flex flex-wrap items-start gap-6">
         <aside className="flex flex-[1_1_320px] flex-col gap-4">
+          <SaveApplication runId={runId} />
           <Panel>
             <PanelTitle>Checks</PanelTitle>
             <CheckRow label="Page count" ok={rendered.pages === 1}>

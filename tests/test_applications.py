@@ -87,23 +87,27 @@ def test_status_changes_keep_their_history(session):
     assert row.company == "ABC" and row.last_change == later + timedelta(days=7)
 
 
+def dups(session, job):
+    return possible_duplicates(session, company_id=job.company_id, job_id=job.id, now=NOW)
+
+
 def test_duplicates_same_job_any_time_or_same_company_within_90_days(session):
     job = manual_job(session, company="ABC", title="AI Engineer")
     other_role = manual_job(session, company="abc", title="Data Engineer")  # same company
     elsewhere = manual_job(session, company="XYZ", title="AI Engineer")
 
-    assert possible_duplicates(session, job, now=NOW) == []
+    assert dups(session, job) == []
     create_application(
         session, job_id=other_role.id, status=S.applied, now=NOW - timedelta(days=100)
     )
-    assert possible_duplicates(session, job, now=NOW) == []  # outside the window
+    assert dups(session, job) == []  # outside the window
     create_application(
         session, job_id=other_role.id, status=S.applied, now=NOW - timedelta(days=30)
     )
-    assert len(possible_duplicates(session, job, now=NOW)) == 1
+    assert len(dups(session, job)) == 1
     create_application(session, job_id=job.id, status=S.saved, now=NOW - timedelta(days=400))
-    assert len(possible_duplicates(session, job, now=NOW)) == 2  # same job: always
-    assert possible_duplicates(session, elsewhere, now=NOW) == []
+    assert len(dups(session, job)) == 2  # same job: always
+    assert dups(session, elsewhere) == []
 
 
 def test_manual_job_reuses_the_same_pasted_text(session):

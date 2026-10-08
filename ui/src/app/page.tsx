@@ -68,7 +68,7 @@ export default function Home() {
 
   return (
     <>
-      <AppHeader stage={stage} />
+      <AppHeader page="tailor" stage={stage} />
       <main className="mx-auto flex w-full max-w-[1120px] flex-col gap-10 px-6 pt-10 pb-16">
         <section id="paste" className="flex flex-col gap-5">
           <div className="flex flex-col gap-1.5">

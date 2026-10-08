@@ -12,6 +12,9 @@ export type Draft = components["schemas"]["DraftOut"];
 export type RunStatus = components["schemas"]["RunStatusOut"];
 export type Rendered = components["schemas"]["RenderOut"];
 export type ReviewDecision = components["schemas"]["ReviewDecisionIn"];
+export type Application = components["schemas"]["ApplicationOut"];
+export type ApplicationStatus = components["schemas"]["ApplicationStatus"];
+export type ManualApplication = components["schemas"]["ManualApplication"];
 
 // "/api" is forwarded to FastAPI by next.config.ts.
 export const api = createClient<paths>({ baseUrl: "/api" });
@@ -20,6 +23,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public issues: string[] = [],
+    public code: string | null = null, // "duplicate" | "ats": repeat with a confirmation
   ) {
     super(message);
   }
@@ -27,8 +31,9 @@ export class ApiError extends Error {
 
 /** Turn any error body from FastAPI into one readable message. */
 export function toApiError(error: unknown, status: number): ApiError {
-  const body = error as { detail?: unknown; issues?: string[] } | undefined;
-  if (typeof body?.detail === "string") return new ApiError(body.detail, body.issues ?? []);
+  const body = error as { detail?: unknown; issues?: string[]; code?: string | null } | undefined;
+  if (typeof body?.detail === "string")
+    return new ApiError(body.detail, body.issues ?? [], body.code ?? null);
   if (Array.isArray(body?.detail)) {
     // Request validation errors: a list of { loc, msg }.
     const msgs = body.detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d));

@@ -80,16 +80,23 @@ def freeze_cv(
 
 
 def possible_duplicates(
-    session: Session, job: Job, *, now: datetime | None = None
+    session: Session,
+    *,
+    company_id: int | None,
+    job_id: int | None = None,
+    now: datetime | None = None,
 ) -> list[tuple[Application, Job]]:
-    """Applications for this same job (any time), or sent to its company in the last 90 days."""
+    """Applications for this same job (any time), or sent to this company in the last 90 days.
+
+    Takes ids rather than a Job, so it can run before a manual application's job is created.
+    """
     now = now or now_utc()
     since = now - timedelta(days=DUPLICATE_WINDOW_DAYS)
     rows = session.exec(select(Application, Job).join(Job)).all()
     out = []
     for application, other in rows:
-        same_job = other.id == job.id
-        same_company = job.company_id is not None and other.company_id == job.company_id
+        same_job = job_id is not None and other.id == job_id
+        same_company = company_id is not None and other.company_id == company_id
         recent = application.applied_at is not None and _aware(application.applied_at) >= since
         if same_job or (same_company and recent):
             out.append((application, other))
@@ -213,7 +220,7 @@ def manual_job(
 
     text = normalize_jd(jd_text or "")
     text_hash = jd_hash(text) if text else f"manual:{uuid.uuid4().hex}"
-    job = session.exec(select(Job).where(Job.text_hash == text_hash)).first() if text else None
+    job = job_with_text(session, jd_text)
     if job is None:
         job = Job(title=title, raw_text=jd_text or "", text_hash=text_hash, source="manual")
     job.url = url or job.url
@@ -222,3 +229,13 @@ def manual_job(
     session.commit()
     session.refresh(job)
     return job
+
+
+def job_with_text(session: Session, jd_text: str | None) -> Job | None:
+    """The job already stored for this JD text, if any."""
+    from factfit.agent.nodes.parse_jd import jd_hash, normalize_jd
+
+    text = normalize_jd(jd_text or "")
+    if not text:
+        return None
+    return session.exec(select(Job).where(Job.text_hash == jd_hash(text))).first()
