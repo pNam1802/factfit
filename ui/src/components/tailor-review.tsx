@@ -1,10 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
+import {
+  ArrowRight,
+  Check,
+  Circle,
+  Download,
+  FileCode,
+  FileText,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
+
+import type { Stage } from "@/components/app-header";
+import {
+  ErrorBox,
+  Note,
+  Panel,
+  PanelTitle,
+  Spinner,
+  StatusPill,
+  type Tone,
+} from "@/components/parts";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ApiError,
@@ -17,6 +36,7 @@ import {
   toApiError,
 } from "@/lib/api";
 import { type Token, wordDiff } from "@/lib/diff";
+import { useElapsed } from "@/lib/use-elapsed";
 import { cn } from "@/lib/utils";
 
 type Phase = "idle" | "running" | "review" | "submitting" | "done";
@@ -33,7 +53,13 @@ const STEP_LABEL: Record<string, string> = {
   review: "Ready for your review",
 };
 
-export function TailorReview({ jobId, level }: { jobId: number; level: Level | null }) {
+type Props = {
+  jobId: number;
+  level: Level | null;
+  onStage: (stage: Stage) => void; // tells the header which step is current
+};
+
+export function TailorReview({ jobId, level, onStage }: Props) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [runId, setRunId] = useState<string | null>(null);
   const [steps, setSteps] = useState<string[]>([]);
@@ -46,8 +72,14 @@ export function TailorReview({ jobId, level }: { jobId: number; level: Level | n
   const [rendered, setRendered] = useState<Rendered | null>(null);
   const [rendering, setRendering] = useState(false);
   const [pdfVersion, setPdfVersion] = useState(0); // bumps on each build, reloads the preview
+  const [built, setBuilt] = useState<Built | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const cards = useRef<(HTMLDivElement | null)[]>([]);
+  const seconds = useElapsed(phase === "running");
+
+  const stage: Stage =
+    phase === "done" ? "export" : phase === "review" || phase === "submitting" ? "review" : "tailor";
+  useEffect(() => onStage(stage), [stage, onStage]);
 
   // --- running ----------------------------------------------------------------------------
 
@@ -132,6 +164,7 @@ export function TailorReview({ jobId, level }: { jobId: number; level: Level | n
     if (!runId) return;
     setRendering(true);
     setError(null);
+    const started = Date.now();
     const res = await api.POST("/runs/{run_id}/render", {
       params: { path: { run_id: runId } },
       body: {},
@@ -141,6 +174,7 @@ export function TailorReview({ jobId, level }: { jobId: number; level: Level | n
     else {
       setRendered(res.data);
       setPdfVersion((v) => v + 1);
+      setBuilt({ at: new Date(), seconds: (Date.now() - started) / 1000 });
     }
   }
 
@@ -188,96 +222,254 @@ export function TailorReview({ jobId, level }: { jobId: number; level: Level | n
     cards.current[focus]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [focus]);
 
+
   // --- view ---------------------------------------------------------------------------------
 
   if (phase === "idle") {
     return (
-      <div className="flex flex-col gap-2">
-        <Button onClick={start} className="self-start">
-          Tailor my CV for this job
-        </Button>
+      <section id="tailor" className="flex flex-col gap-4">
+        <Panel className="flex-row flex-wrap items-center justify-between gap-5 p-6">
+          <div className="flex items-start gap-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+              <Sparkles className="size-5" />
+            </span>
+            <div className="flex max-w-xl flex-col gap-1">
+              <PanelTitle className="text-lg">Tailor the CV for this job</PanelTitle>
+              <p className="text-sm text-muted-foreground">
+                Picks your strongest bullets, rewrites them toward this job, and checks every
+                rewrite against your profile. Anything that fails keeps your original words.
+              </p>
+            </div>
+          </div>
+          <Button size="lg" onClick={start}>
+            Tailor my CV
+            <ArrowRight />
+          </Button>
+        </Panel>
         {error && <ErrorBox error={error} />}
-      </div>
+      </section>
     );
   }
 
   if (phase === "running") {
+    const current = STEPS.find((s) => !steps.includes(s));
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Tailoring your CV…</CardTitle>
-          <CardDescription>Usually 15–60 seconds.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ol className="flex flex-col gap-1 text-sm" aria-live="polite">
-            {STEPS.map((s) => (
-              <li key={s} className={cn(steps.includes(s) ? "text-foreground" : "text-muted-foreground")}>
-                {steps.includes(s) ? "✓" : "○"} {STEP_LABEL[s]}
-              </li>
-            ))}
+      <section id="tailor">
+        <Panel className="p-6">
+          <div className="flex items-baseline justify-between gap-3">
+            <PanelTitle className="text-lg">Tailoring your CV…</PanelTitle>
+            <span className="font-mono text-sm text-muted-foreground">
+              {seconds}s · usually 15–60s
+            </span>
+          </div>
+          <ol className="flex flex-col gap-2.5 text-sm" aria-live="polite">
+            {STEPS.map((s) => {
+              const done = steps.includes(s);
+              const now = s === current;
+              return (
+                <li
+                  key={s}
+                  className={cn(
+                    "flex items-center gap-3",
+                    done
+                      ? "text-foreground"
+                      : now
+                        ? "font-medium text-foreground"
+                        : "text-muted-foreground",
+                  )}
+                >
+                  <span className="flex size-5 items-center justify-center">
+                    {done ? (
+                      <Check className="size-4 text-ok" strokeWidth={3} />
+                    ) : now ? (
+                      <Spinner className="size-3.5 text-primary" />
+                    ) : (
+                      <Circle className="size-3" />
+                    )}
+                  </span>
+                  {STEP_LABEL[s]}
+                </li>
+              );
+            })}
           </ol>
-        </CardContent>
-      </Card>
+          {steps.includes("fallback") && (
+            <p className="text-sm text-warn">
+              Some rewrites failed the checks twice and fell back to your original words.
+            </p>
+          )}
+        </Panel>
+      </section>
     );
   }
 
   const decided = drafts.filter((d) => choices[d.source_id]).length;
+  const reviewing = phase !== "done";
+  const counts = {
+    passed: drafts.filter((d) => d.passed && !d.fallback && d.attempts <= 1).length,
+    retried: drafts.filter((d) => d.passed && !d.fallback && d.attempts > 1).length,
+    kept: drafts.filter((d) => d.fallback).length,
+    failed: drafts.filter((d) => !d.passed).length,
+  };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold">
-          {phase === "done" ? "Reviewed CV" : "Review each bullet"}
-        </h2>
-        {phase !== "done" && (
-          <p className="text-xs text-muted-foreground">
-            J / K move · A accept · E edit · R keep original · {decided}/{drafts.length} decided
-            (the rest are accepted)
+    <>
+      <section id="review" className="flex flex-col gap-5">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-xl font-semibold tracking-tight">
+            {reviewing ? "Review each bullet" : "Reviewed CV"}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {reviewing
+              ? "Green words are new, struck-through words are gone. Bullets you leave undecided are accepted."
+              : "Your decisions are saved. Build the PDF below."}
           </p>
-        )}
-      </div>
-
-      {drafts.map((d, i) => (
-        <DraftCard
-          key={d.source_id}
-          cardRef={(el) => {
-            cards.current[i] = el;
-          }}
-          draft={d}
-          focused={phase === "review" && i === focus}
-          choice={choices[d.source_id]}
-          errors={reviewErrors[d.source_id]}
-          readOnly={phase !== "review"}
-          editing={editing === d.source_id}
-          editText={editText}
-          onFocus={() => setFocus(i)}
-          onChoose={(c) => choose(d.source_id, c)}
-          onEdit={() => startEdit(d)}
-          onEditText={setEditText}
-          onSave={() => saveEdit(d.source_id)}
-          onCancel={() => setEditing(null)}
-        />
-      ))}
-
-      {error && <ErrorBox error={error} />}
-
-      {phase !== "done" ? (
-        <Button onClick={submit} disabled={phase === "submitting" || editing !== null} className="self-start">
-          {phase === "submitting" ? "Checking your edits…" : "Finish review"}
-        </Button>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <Button onClick={render} disabled={rendering} className="self-start">
-            {rendering ? "Building the PDF…" : rendered ? "Rebuild PDF" : "Build PDF"}
-          </Button>
-          {rendered && <RenderedView rendered={rendered} version={pdfVersion} />}
         </div>
+
+        <div className="flex flex-wrap items-start gap-6">
+          <aside className="flex flex-[1_1_280px] flex-col gap-4 lg:sticky lg:top-20">
+            <Panel>
+              <PanelTitle>Progress</PanelTitle>
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between text-sm">
+                  <span>{reviewing ? "Decided" : "Bullets"}</span>
+                  <span className="font-medium tabular-nums">
+                    {reviewing ? `${decided} of ${drafts.length}` : drafts.length}
+                  </span>
+                </div>
+                {reviewing && (
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-[width]"
+                      style={{ width: `${drafts.length ? (decided / drafts.length) * 100 : 0}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+              <CountRow label="Passed checks" n={counts.passed} tone="ok" />
+              <CountRow label="Passed after a retry" n={counts.retried} tone="ok" />
+              <CountRow label="Original kept" n={counts.kept} tone="warn" />
+              {counts.failed > 0 && <CountRow label="Edits refused" n={counts.failed} tone="bad" />}
+            </Panel>
+
+            {reviewing && (
+              <>
+                <Panel className="gap-2.5 text-sm">
+                  <PanelTitle>Keys</PanelTitle>
+                  <KeyRow keys={["J", "K"]} label="Next / previous bullet" />
+                  <KeyRow keys={["A"]} label="Accept the rewrite" />
+                  <KeyRow keys={["E"]} label="Edit it yourself" />
+                  <KeyRow keys={["R"]} label="Keep the original" />
+                </Panel>
+                <Button
+                  size="lg"
+                  onClick={submit}
+                  disabled={phase === "submitting" || editing !== null}
+                >
+                  {phase === "submitting" ? <Spinner /> : <Check />}
+                  {phase === "submitting" ? "Checking your edits…" : "Finish review"}
+                </Button>
+              </>
+            )}
+          </aside>
+
+          <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-3">
+            {drafts.map((d, i) => (
+              <DraftCard
+                key={d.source_id}
+                cardRef={(el) => {
+                  cards.current[i] = el;
+                }}
+                draft={d}
+                focused={phase === "review" && i === focus}
+                choice={choices[d.source_id]}
+                errors={reviewErrors[d.source_id]}
+                readOnly={phase !== "review"}
+                editing={editing === d.source_id}
+                editText={editText}
+                onFocus={() => setFocus(i)}
+                onChoose={(c) => choose(d.source_id, c)}
+                onEdit={() => startEdit(d)}
+                onEditText={setEditText}
+                onSave={() => saveEdit(d.source_id)}
+                onCancel={() => setEditing(null)}
+              />
+            ))}
+          </div>
+        </div>
+        {reviewing && error && <ErrorBox error={error} />}
+      </section>
+
+      {!reviewing && (
+        <section id="export" className="flex flex-col gap-5">
+          <h2 className="text-xl font-semibold tracking-tight">Export</h2>
+          {error && <ErrorBox error={error} />}
+          {rendered ? (
+            <ExportView
+              rendered={rendered}
+              version={pdfVersion}
+              built={built}
+              rendering={rendering}
+              onRebuild={render}
+            />
+          ) : (
+            <Panel className="flex-row flex-wrap items-center justify-between gap-5 p-6">
+              <div className="flex items-start gap-4">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+                  <FileText className="size-5" />
+                </span>
+                <div className="flex max-w-xl flex-col gap-1">
+                  <PanelTitle className="text-lg">Build the PDF</PanelTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Fills your Overleaf template, compiles it, then reads the PDF back the way an
+                    ATS would to check nothing got lost.
+                  </p>
+                </div>
+              </div>
+              <Button size="lg" onClick={render} disabled={rendering}>
+                {rendering ? <Spinner /> : <FileText />}
+                {rendering ? "Building the PDF…" : "Build PDF"}
+              </Button>
+            </Panel>
+          )}
+        </section>
       )}
-    </div>
+    </>
   );
 }
 
 // --- pieces ------------------------------------------------------------------------------------
+
+function CountRow({ label, n, tone }: { label: string; n: number; tone: Tone }) {
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <span>{label}</span>
+      <span
+        className={cn(
+          "font-medium tabular-nums",
+          n === 0 && "text-muted-foreground",
+          n > 0 && tone === "ok" && "text-ok",
+          n > 0 && tone === "warn" && "text-warn",
+          n > 0 && tone === "bad" && "text-bad",
+        )}
+      >
+        {n}
+      </span>
+    </div>
+  );
+}
+
+function KeyRow({ keys, label }: { keys: string[]; label: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="flex gap-1">
+        {keys.map((k) => (
+          <kbd key={k}>{k}</kbd>
+        ))}
+      </span>
+    </div>
+  );
+}
 
 type DraftCardProps = {
   cardRef: (el: HTMLDivElement | null) => void;
@@ -295,6 +487,14 @@ type DraftCardProps = {
   onSave: () => void;
   onCancel: () => void;
 };
+
+function draftStatus(d: Draft): { label: string; tone: Tone; edge: string } {
+  if (!d.passed) return { label: "Your edit failed checks", tone: "bad", edge: "border-l-bad" };
+  if (d.fallback)
+    return { label: "Original kept: rewrites failed checks", tone: "warn", edge: "border-l-warn" };
+  if (d.attempts > 1) return { label: "Passed after one retry", tone: "ok", edge: "border-l-ok" };
+  return { label: "Passed checks", tone: "ok", edge: "border-l-ok" };
+}
 
 function DraftCard({
   cardRef,
@@ -315,73 +515,93 @@ function DraftCard({
   const d = draft;
   const shown = choice?.action === "reject" ? d.original : (choice?.text ?? d.text);
   const diff = wordDiff(d.original, shown);
-  const status = !d.passed
-    ? { label: "Your edit failed checks", tone: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" }
-    : d.fallback
-    ? { label: "Original kept: rewrites failed checks", tone: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" }
-    : d.attempts > 1
-      ? { label: "Passed after one retry", tone: "bg-muted text-muted-foreground" }
-      : { label: "Passed checks", tone: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" };
+  const status = draftStatus(d);
+  const unchanged = d.original === shown;
 
   return (
     <div
       ref={cardRef}
       onClick={onFocus}
       className={cn(
-        "flex flex-col gap-2 rounded-lg border p-3 transition-colors",
-        focused && "border-foreground/40 ring-2 ring-ring/30",
-        errors && "border-red-400",
+        "flex flex-col gap-3 rounded-xl border border-l-4 bg-card p-4 transition-shadow",
+        status.edge,
+        focused && "ring-2 ring-primary/60",
+        errors && "border-bad-line",
       )}
     >
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <code>{d.source_id}</code>
-        <span>· {d.entry_id}</span>
-        <Badge className={status.tone}>{status.label}</Badge>
-        {choice && <Badge variant="outline">{choiceLabel(choice)}</Badge>}
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusPill tone={status.tone}>{status.label}</StatusPill>
+        {choice && <ChoiceTag choice={choice} />}
+        <span className="ml-auto font-mono text-xs text-muted-foreground">
+          {d.entry_id} · {d.source_id}
+        </span>
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        <Words tokens={diff.before} />
-      </p>
-      {editing ? (
-        <div className="flex flex-col gap-2">
-          <Textarea
-            autoFocus
-            value={editText}
-            onChange={(e) => onEditText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) onSave();
-              if (e.key === "Escape") onCancel();
-            }}
-          />
-          <p className="text-xs text-muted-foreground">
-            Ctrl+Enter to save, Esc to cancel. Your edit goes through the same checks.
+      {!unchanged && (
+        <div className="flex flex-col gap-1">
+          <Label>Original</Label>
+          <p className="text-sm text-muted-foreground">
+            <Words tokens={diff.before} />
           </p>
         </div>
-      ) : (
-        <p>
-          <Words tokens={diff.after} />
-        </p>
       )}
+      <div className="flex flex-col gap-1">
+        <Label>
+          {unchanged ? "Bullet (unchanged)" : choice?.action === "edit" ? "Your edit" : "Rewrite"}
+        </Label>
+        {editing ? (
+          <div className="flex flex-col gap-2">
+            <Textarea
+              autoFocus
+              value={editText}
+              onChange={(e) => onEditText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) onSave();
+                if (e.key === "Escape") onCancel();
+              }}
+              className="text-[15px]"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={onSave}>
+                Save
+              </Button>
+              <Button size="sm" variant="outline" onClick={onCancel}>
+                Cancel
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                <kbd>Ctrl</kbd> + <kbd>Enter</kbd> saves, <kbd>Esc</kbd> cancels. Your edit goes
+                through the same checks.
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-[15px] leading-relaxed">
+            <Words tokens={diff.after} />
+          </p>
+        )}
+      </div>
 
       {errors && (
-        <div role="alert" className="text-sm text-red-700 dark:text-red-300">
-          Your edit was refused:
-          <ul className="list-disc pl-5">
+        <Note tone="bad">
+          <strong className="font-semibold">Your edit was refused</strong>
+          <ul className="mt-1 list-disc pl-5">
             {errors.map((e) => (
               <li key={e}>{e}</li>
             ))}
           </ul>
-        </div>
+        </Note>
       )}
 
       {d.history.length > 0 && (
         <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer">Rejected rewrites ({d.history.length})</summary>
-          <ul className="mt-1 flex flex-col gap-1">
+          <summary className="cursor-pointer select-none">
+            Rejected rewrites ({d.history.length})
+          </summary>
+          <ul className="mt-2 flex flex-col gap-1.5">
             {d.history.map(([text, problems], i) => (
-              <li key={i}>
-                “{String(text)}” — {(problems as string[]).join("; ")}
+              <li key={i} className="rounded-md bg-muted/60 px-2.5 py-1.5">
+                “{String(text)}”
+                <span className="block text-bad">{(problems as string[]).join("; ")}</span>
               </li>
             ))}
           </ul>
@@ -389,19 +609,73 @@ function DraftCard({
       )}
 
       {!readOnly && !editing && (
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => onChoose({ action: "accept" })}>
-            Accept (A)
-          </Button>
-          <Button size="sm" variant="outline" onClick={onEdit}>
-            Edit (E)
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => onChoose({ action: "reject" })}>
-            Keep original (R)
-          </Button>
+        <div className="flex flex-wrap gap-2">
+          <ActionButton
+            active={choice?.action === "accept"}
+            onClick={() => onChoose({ action: "accept" })}
+            k="A"
+          >
+            Accept
+          </ActionButton>
+          <ActionButton active={choice?.action === "edit"} onClick={onEdit} k="E">
+            Edit
+          </ActionButton>
+          <ActionButton
+            active={choice?.action === "reject"}
+            onClick={() => onChoose({ action: "reject" })}
+            k="R"
+          >
+            Keep original
+          </ActionButton>
         </div>
       )}
     </div>
+  );
+}
+
+function Label({ children }: { children: ReactNode }) {
+  return (
+    <span className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+      {children}
+    </span>
+  );
+}
+
+function ActionButton({
+  active,
+  onClick,
+  k,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  k: string;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={onClick}
+      className={cn("h-8 gap-2", active && "border-primary bg-accent text-accent-foreground")}
+    >
+      {children}
+      <kbd className="h-4 min-w-4 text-[10px]">{k}</kbd>
+    </Button>
+  );
+}
+
+function ChoiceTag({ choice }: { choice: Choice }) {
+  const label =
+    choice.action === "accept"
+      ? "Accepted"
+      : choice.action === "reject"
+        ? "Keeping original"
+        : "Edited";
+  return (
+    <span className="inline-flex h-6 items-center rounded-full border border-primary/40 px-2.5 text-xs font-medium text-accent-foreground">
+      {label}
+    </span>
   );
 }
 
@@ -412,8 +686,8 @@ function Words({ tokens }: { tokens: Token[] }) {
         <span
           key={i}
           className={cn(
-            t.kind === "added" && "rounded bg-emerald-100 dark:bg-emerald-950",
-            t.kind === "removed" && "line-through decoration-red-500/70",
+            t.kind === "added" && "rounded bg-ok-soft px-0.5 text-ok-strong",
+            t.kind === "removed" && "line-through decoration-bad/70",
           )}
         >
           {t.word}{" "}
@@ -423,68 +697,197 @@ function Words({ tokens }: { tokens: Token[] }) {
   );
 }
 
-function choiceLabel(c: Choice): string {
-  return c.action === "accept" ? "accepted" : c.action === "reject" ? "keep original" : "edited";
-}
+type Built = { at: Date; seconds: number };
 
-function RenderedView({ rendered, version }: { rendered: Rendered; version: number }) {
+function ExportView({
+  rendered,
+  version,
+  built,
+  rendering,
+  onRebuild,
+}: {
+  rendered: Rendered;
+  version: number;
+  built: Built | null;
+  rendering: boolean;
+  onRebuild: () => void;
+}) {
+  const ok = rendered.ats_ok;
+  const pdf = `/api${rendered.pdf_url}`;
+  const summary = [
+    `${rendered.pages} page${rendered.pages === 1 ? "" : "s"}`,
+    rendered.issues.length ? `${rendered.issues.length} problem(s) to fix` : "no errors",
+    rendered.warnings.length
+      ? `${rendered.warnings.length} ATS warning(s) worth a look`
+      : "no ATS warnings",
+  ].join(" · ");
+
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge
-          className={
-            rendered.ats_ok
-              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-              : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
-          }
-        >
-          {rendered.ats_ok ? "Ready to send" : "Do not send yet"}
-        </Badge>
-        <span className="text-muted-foreground">{rendered.pages} page(s)</span>
-        <a className="underline" href={`/api${rendered.pdf_url}`} download>
-          Download PDF
-        </a>
-        <a className="underline" href={`/api${rendered.tex_url}`} download>
-          Download .tex
-        </a>
+    <div className="flex flex-col gap-6">
+      <div
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-4 rounded-xl border px-6 py-5",
+          ok ? "border-ok-line bg-ok-soft" : "border-bad-line bg-bad-soft",
+        )}
+      >
+        <div className="flex items-center gap-3.5">
+          <span
+            className={cn(
+              "flex size-9 shrink-0 items-center justify-center rounded-full text-white",
+              ok ? "bg-ok" : "bg-bad",
+            )}
+          >
+            {ok ? (
+              <Check className="size-[18px]" strokeWidth={3} />
+            ) : (
+              <span className="text-lg font-bold">!</span>
+            )}
+          </span>
+          <div className="flex flex-col gap-0.5">
+            <span className={cn("text-xl font-semibold", ok ? "text-ok-strong" : "text-bad-strong")}>
+              {ok ? "Ready to send" : "Do not send yet"}
+            </span>
+            <span className={cn("text-sm", ok ? "text-ok" : "text-bad")}>{summary}</span>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={pdf}
+            download
+            className={cn(
+              "inline-flex h-11 items-center gap-2 rounded-lg px-4.5 text-sm font-semibold text-white",
+              ok ? "bg-ok hover:bg-ok-strong" : "bg-bad hover:bg-bad-strong",
+            )}
+          >
+            <Download className="size-4" />
+            Download .pdf
+          </a>
+          <a
+            href={`/api${rendered.tex_url}`}
+            download
+            className={cn(
+              "inline-flex h-11 items-center gap-2 rounded-lg border bg-card px-4.5 text-sm font-medium",
+              ok ? "border-ok-line text-ok-strong" : "border-bad-line text-bad-strong",
+            )}
+          >
+            <FileCode className="size-4" />
+            .tex source
+          </a>
+        </div>
       </div>
-      {rendered.issues.length > 0 && (
-        <ul className="list-disc pl-5 text-sm text-red-700 dark:text-red-300">
-          {rendered.issues.map((i) => (
-            <li key={i}>{i}</li>
-          ))}
-        </ul>
-      )}
-      {rendered.warnings.length > 0 && (
-        <ul className="list-disc pl-5 text-xs text-muted-foreground">
-          {rendered.warnings.map((w) => (
-            <li key={w}>{w}</li>
-          ))}
-        </ul>
-      )}
-      <iframe
-        title="CV preview"
-        src={`/api${rendered.pdf_url}?v=${version}`}
-        className="h-[85vh] w-full rounded-lg border"
-      />
+
+      <div className="flex flex-wrap items-start gap-6">
+        <aside className="flex flex-[1_1_320px] flex-col gap-4">
+          <Panel>
+            <PanelTitle>Checks</PanelTitle>
+            <CheckRow label="Page count" ok={rendered.pages === 1}>
+              {rendered.pages} of 1
+            </CheckRow>
+            <CheckRow label="Compile (tectonic)" ok>
+              OK{built && ` · ${built.seconds.toFixed(1)}s`}
+            </CheckRow>
+            <CheckRow label="ATS errors" ok={rendered.issues.length === 0}>
+              {rendered.issues.length}
+            </CheckRow>
+            <CheckRow label="ATS warnings" ok={rendered.warnings.length === 0} soft>
+              {rendered.warnings.length}
+            </CheckRow>
+          </Panel>
+
+          {rendered.issues.length > 0 && (
+            <Panel className="gap-3">
+              <PanelTitle>Fix before sending</PanelTitle>
+              {rendered.issues.map((i) => (
+                <Note key={i} tone="bad">
+                  {i}
+                </Note>
+              ))}
+            </Panel>
+          )}
+          {rendered.warnings.length > 0 && (
+            <Panel className="gap-3">
+              <PanelTitle>ATS warnings</PanelTitle>
+              {rendered.warnings.map((w) => (
+                <Note key={w} tone="warn">
+                  {w}
+                </Note>
+              ))}
+            </Panel>
+          )}
+
+          <Button size="lg" variant="outline" onClick={onRebuild} disabled={rendering}>
+            {rendering ? <Spinner /> : <RefreshCw />}
+            {rendering ? "Building…" : "Rebuild PDF"}
+          </Button>
+          <p className="font-mono text-xs text-muted-foreground">
+            Template: your Overleaf CV
+            {built &&
+              ` · built ${built.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+          </p>
+        </aside>
+
+        <section
+          aria-label="PDF preview"
+          className="flex min-w-0 flex-[999_1_560px] justify-center rounded-xl bg-stage p-4 sm:p-8"
+        >
+          <PdfFrame src={`${pdf}?v=${version}`} />
+        </section>
+      </div>
     </div>
   );
 }
 
-function ErrorBox({ error }: { error: ApiError }) {
+const A4_WIDTH_PX = 794; // 210 mm at 96 dpi: the PDF viewer's width at 100% zoom
+
+/** The PDF page, scaled to fill the frame. Chrome's viewer ignores "fit" hints in the URL
+ * but honours a numeric zoom, so the zoom follows the frame's width. */
+function PdfFrame({ src }: { src: string }) {
+  const [zoom, setZoom] = useState<number | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => setZoom(Math.floor(((el.clientWidth - 8) / A4_WIDTH_PX) * 100));
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   return (
     <div
-      role="alert"
-      className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+      ref={ref}
+      className="aspect-[210/297] w-full max-w-[640px] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.12)]"
     >
-      {error.message}
-      {error.issues.length > 0 && (
-        <ul className="mt-1 list-disc pl-5">
-          {error.issues.slice(0, 8).map((i) => (
-            <li key={i}>{i}</li>
-          ))}
-        </ul>
+      {zoom && (
+        <iframe
+          title="CV preview"
+          src={`${src}#toolbar=0&navpanes=0&zoom=${zoom}`}
+          className="size-full border-0"
+        />
       )}
+    </div>
+  );
+}
+
+function CheckRow({
+  label,
+  ok,
+  soft,
+  children,
+}: {
+  label: string;
+  ok: boolean;
+  soft?: boolean; // a failure here is a warning, not a blocker
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex justify-between text-sm">
+      <span>{label}</span>
+      <span
+        className={cn("font-medium", ok ? "text-ok" : soft ? "text-warn" : "text-bad")}
+      >
+        {ok ? "✓" : soft ? "!" : "✕"} {children}
+      </span>
     </div>
   );
 }

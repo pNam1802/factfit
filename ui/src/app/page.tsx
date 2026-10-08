@@ -1,13 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
+import { Search } from "lucide-react";
+
+import { AppHeader, type Stage } from "@/components/app-header";
 import { MatchResults } from "@/components/match-results";
+import { ErrorBox, Panel, PanelTitle, Spinner } from "@/components/parts";
 import { TailorReview } from "@/components/tailor-review";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, api, type Job, type Level, type Match, toApiError } from "@/lib/api";
+import { useElapsed } from "@/lib/use-elapsed";
 
 type Step = "idle" | "parsing" | "matching" | "done";
 
@@ -28,12 +33,14 @@ export default function Home() {
   const [job, setJob] = useState<Job | null>(null);
   const [match, setMatch] = useState<Match | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
+  const [tailorStage, setTailorStage] = useState<Stage>("tailor");
   const seconds = useElapsed(step === "parsing" || step === "matching");
 
   async function analyze() {
     setError(null);
     setMatch(null);
     setJob(null);
+    setTailorStage("tailor");
     try {
       setStep("parsing");
       const parsed = await api.POST("/jobs", {
@@ -57,96 +64,109 @@ export default function Home() {
   }
 
   const busy = step === "parsing" || step === "matching";
+  const stage: Stage = match ? tailorStage : busy ? "match" : "paste";
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">factfit</h1>
-        <p className="text-muted-foreground">
-          Paste a job description to see which requirements your verified profile meets, and
-          which bullets prove it.
-        </p>
-      </header>
+    <>
+      <AppHeader stage={stage} />
+      <main className="mx-auto flex w-full max-w-[1120px] flex-col gap-10 px-6 pt-10 pb-16">
+        <section id="paste" className="flex flex-col gap-5">
+          <div className="flex flex-col gap-1.5">
+            <h1 className="text-2xl font-semibold tracking-tight">Tailor your CV to a job</h1>
+            <p className="max-w-2xl text-muted-foreground">
+              Paste a job description to see which requirements your verified profile meets, and
+              which bullets prove it. Every line on the CV traces back to your profile.
+            </p>
+          </div>
 
-      <form
-        className="flex flex-col gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!busy && text.trim()) analyze();
-        }}
-      >
-        <Textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Paste the job description here (English or Vietnamese)"
-          className="min-h-56"
-          disabled={busy}
-        />
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Input
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            placeholder="Company (optional)"
-            disabled={busy}
-          />
-          <select
-            value={level}
-            onChange={(e) => setLevel(e.target.value as "" | Level)}
-            disabled={busy}
-            aria-label="Your level"
-            className="h-9 rounded-md border bg-transparent px-3 text-sm"
+          <form
+            className="flex flex-wrap items-start gap-6"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!busy && text.trim()) analyze();
+            }}
           >
-            {LEVELS.map((l) => (
-              <option key={l.value} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-          <Button type="submit" disabled={busy || !text.trim()}>
-            {busy ? "Working…" : "Analyze"}
-          </Button>
-        </div>
-      </form>
+            <Panel className="min-w-0 flex-[999_1_560px] gap-2">
+              <label htmlFor="jd" className="text-[15px] font-semibold">
+                Job description
+              </label>
+              <Textarea
+                id="jd"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="Paste the job description here (English or Vietnamese)"
+                className="min-h-64 bg-background/40 text-[15px] leading-relaxed"
+                disabled={busy}
+              />
+              <p className="font-mono text-xs text-muted-foreground">
+                {text.trim() ? `${words(text)} words` : "Nothing pasted yet"}
+              </p>
+            </Panel>
 
-      {busy && (
-        <p className="text-sm text-muted-foreground" aria-live="polite">
-          {step === "parsing"
-            ? "Reading the job description…"
-            : `Checking your profile against ${job?.jd.must_have.length ?? 0} must-have requirements…`}{" "}
-          {seconds}s
-        </p>
-      )}
+            <aside className="flex flex-[1_1_300px] flex-col gap-4">
+              <Panel>
+                <PanelTitle>Options</PanelTitle>
+                <label className="flex flex-col gap-1.5 text-sm">
+                  <span className="text-muted-foreground">Company</span>
+                  <Input
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    placeholder="Optional"
+                    disabled={busy}
+                    className="h-10"
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5 text-sm">
+                  <span className="text-muted-foreground">Your level</span>
+                  <select
+                    value={level}
+                    onChange={(e) => setLevel(e.target.value as "" | Level)}
+                    disabled={busy}
+                    className="h-10 rounded-lg border border-input bg-card px-3 text-sm"
+                  >
+                    {LEVELS.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </Panel>
+              <Button type="submit" size="lg" disabled={busy || !text.trim()}>
+                {busy ? <Spinner /> : <Search />}
+                {busy ? "Working…" : "Analyze"}
+              </Button>
+              {busy && (
+                <p className="text-sm text-muted-foreground" aria-live="polite">
+                  {step === "parsing"
+                    ? "Reading the job description…"
+                    : `Checking your profile against ${job?.jd.must_have.length ?? 0} must-have requirements…`}{" "}
+                  <span className="font-mono">{seconds}s</span>
+                </p>
+              )}
+              <p className="font-mono text-xs text-muted-foreground">
+                Parse and match are cached per job text: pasting the same JD again is free.
+              </p>
+            </aside>
+          </form>
 
-      {error && (
-        <div role="alert" className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-          <p className="font-medium">{error.message}</p>
-          {error.issues.length > 0 && (
-            <ul className="mt-2 list-disc pl-5">
-              {error.issues.slice(0, 8).map((i) => (
-                <li key={i}>{i}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+          {error && <ErrorBox error={error} />}
+        </section>
 
-      {job && match && <MatchResults job={job} match={match} />}
-      {job && match && <TailorReview key={job.id} jobId={job.id} level={level || null} />}
-    </main>
+        {job && match && <MatchResults job={job} match={match} />}
+        {job && match && (
+          <TailorReview
+            key={job.id}
+            jobId={job.id}
+            level={level || null}
+            onStage={setTailorStage}
+          />
+        )}
+      </main>
+    </>
   );
 }
 
-/** Seconds since `running` became true; resets when it turns false. */
-function useElapsed(running: boolean): number {
-  const [seconds, setSeconds] = useState(0);
-  useEffect(() => {
-    if (!running) return;
-    const started = Date.now();
-    const id = setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 500);
-    return () => {
-      clearInterval(id);
-      setSeconds(0);
-    };
-  }, [running]);
-  return seconds;
+function words(text: string): number {
+  return text.trim().split(/\s+/).length;
 }
