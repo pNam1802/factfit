@@ -1264,6 +1264,27 @@
             ],
             "title": "Cv"
           },
+          "render": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RenderOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "render_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Error"
+          },
           "error": {
             "anyOf": [
               {

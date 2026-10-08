@@ -87,3 +87,25 @@ def render_and_check(profile, cv, out_dir: Path, jd_keywords: list[str] | None =
 
     result = compile_pdf(render_tex(build_view(profile, cv)), out_dir)
     return result, check_pdf(result.pdf_path, profile, cv, jd_keywords)
+
+
+@dataclass
+class TailoredRender:
+    """What a tailored CV's export shows: send it only when `issues` is empty."""
+
+    pages: int
+    issues: list[str]  # block sending: unreadable text, more than one page, ...
+    warnings: list[str]
+
+    @property
+    def ats_ok(self) -> bool:
+        return not self.issues
+
+
+def render_tailored(profile, cv, out_dir: Path, jd_keywords: list[str] | None = None):
+    """render_and_check plus the rule that a tailored CV fits on one page (PRD F6)."""
+    result, ats = render_and_check(profile, cv, out_dir, jd_keywords)
+    issues = list(ats.issues)
+    if result.pages != 1:
+        issues.append(f"the CV has {result.pages} pages; a tailored CV must fit on 1 page")
+    return TailoredRender(pages=result.pages, issues=issues, warnings=list(ats.warnings))

@@ -105,15 +105,6 @@ class DraftOut(BaseModel):
     user_rejected: bool = False
 
 
-class RunStatusOut(BaseModel):
-    run_id: str
-    status: RunState
-    drafts: list[DraftOut] = []
-    review_errors: dict[str, list[str]] = {}  # source_id -> why an edit was refused
-    cv: dict | None = None  # TailoredCV once done
-    error: str | None = None
-
-
 class RenderRequest(Strict):
     keywords: list[str] | None = None  # default: the job's keywords
 
@@ -126,3 +117,14 @@ class RenderOut(BaseModel):
     warnings: list[str]
     pdf_url: str
     tex_url: str
+
+
+class RunStatusOut(BaseModel):
+    run_id: str
+    status: RunState
+    drafts: list[DraftOut] = []
+    review_errors: dict[str, list[str]] = {}  # source_id -> why an edit was refused
+    cv: dict | None = None  # TailoredCV once done
+    render: RenderOut | None = None  # the PDF built when the review finished
+    render_error: str | None = None  # why that PDF could not be built
+    error: str | None = None

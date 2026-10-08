@@ -131,6 +131,14 @@ export function TailorReview({ jobId, level, onStage }: Props) {
     setDrafts(status.drafts);
     setReviewErrors(status.review_errors);
     setPhase(status.status === "done" ? "done" : "review");
+    // Finishing the review also builds the PDF; show it, or why it failed.
+    if (status.render) {
+      setRendered(status.render);
+      setPdfVersion((v) => v + 1);
+      setBuilt({ at: new Date(), seconds: null });
+    } else if (status.render_error) {
+      setError(new ApiError(`The PDF could not be built: ${status.render_error}`));
+    }
   }
 
   async function submit() {
@@ -321,7 +329,7 @@ export function TailorReview({ jobId, level, onStage }: Props) {
           <p className="text-sm text-muted-foreground">
             {reviewing
               ? "Green words are new, struck-through words are gone. Bullets you leave undecided are accepted."
-              : "Your decisions are saved. Build the PDF below."}
+              : "Your decisions are saved. The PDF is below."}
           </p>
         </div>
 
@@ -366,7 +374,7 @@ export function TailorReview({ jobId, level, onStage }: Props) {
                   disabled={phase === "submitting" || editing !== null}
                 >
                   {phase === "submitting" ? <Spinner /> : <Check />}
-                  {phase === "submitting" ? "Checking your edits…" : "Finish review"}
+                  {phase === "submitting" ? "Checking edits, building the PDF…" : "Finish review"}
                 </Button>
               </>
             )}
@@ -697,7 +705,7 @@ function Words({ tokens }: { tokens: Token[] }) {
   );
 }
 
-type Built = { at: Date; seconds: number };
+type Built = { at: Date; seconds: number | null }; // seconds: only known for a rebuild
 
 function ExportView({
   rendered,
@@ -784,7 +792,7 @@ function ExportView({
               {rendered.pages} of 1
             </CheckRow>
             <CheckRow label="Compile (tectonic)" ok>
-              OK{built && ` · ${built.seconds.toFixed(1)}s`}
+              OK{built?.seconds != null && ` · ${built.seconds.toFixed(1)}s`}
             </CheckRow>
             <CheckRow label="ATS errors" ok={rendered.issues.length === 0}>
               {rendered.issues.length}

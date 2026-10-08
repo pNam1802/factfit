@@ -91,8 +91,11 @@ def test_render_after_review_gives_a_checked_pdf(api):
     # Rendering before the review is finished is refused.
     assert client.post(f"/runs/{run_id}/render", json={}).status_code == 409
 
-    client.post(f"/runs/{run_id}/review", json={"decisions": []})
-    out = client.post(f"/runs/{run_id}/render", json={}).json()
+    # Finishing the review builds the PDF in the same request.
+    done = client.post(f"/runs/{run_id}/review", json={"decisions": []}).json()
+    assert done["render"]["pages"] == 1 and done["render_error"] is None
+    out = client.post(f"/runs/{run_id}/render", json={}).json()  # a rebuild
+    assert client.get(f"/runs/{run_id}").json()["render"] == out
     assert out["pages"] == 1 and out["ats_ok"], out["issues"]
     pdf = client.get(out["pdf_url"])
     assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF"

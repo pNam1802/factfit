@@ -101,10 +101,13 @@ def env(tmp_path):
     return engine, tmp_path / "checkpoints.db", job_id
 
 
-def start(env, backend, run_id="run1"):
+def start(env, backend, run_id="run1", client=None, output_dir=None):
     engine, ckpt, job_id = env
     graph = build_graph(
-        client=LLMClient(backend, CONFIG), engine=engine, checkpointer=open_checkpointer(ckpt)
+        client=client or LLMClient(backend, CONFIG),
+        engine=engine,
+        checkpointer=open_checkpointer(ckpt),
+        output_dir=output_dir,
     )
     state = {
         "job_id": job_id,
@@ -185,3 +188,49 @@ def test_a_persons_edit_gets_every_problem_at_once(env):
     errors = resume(graph, [edit])["review"]["review_errors"]["b1"]
     # the rule problem (60) and the judge problem (robust) in the same round
     assert any("'60'" in e for e in errors) and any("robust" in e for e in errors)
+
+
+def test_every_llm_call_is_logged_under_the_run_id(env):
+    logged = []
+    backend = FakeBackend()
+    graph = start(env, backend, client=LLMClient(backend, CONFIG, log=logged.append))
+    resume(graph, [{"source_id": "b2", "action": "edit", "text": "Helped with a FastAPI app"}])
+    assert logged and {c.run_id for c in logged} == {"run1"}
+    assert {c.node for c in logged} >= {"match", "rewrite", "judge"}
+
+
+def test_a_rewrite_equal_to_its_source_skips_the_judge(env):
+    backend = FakeBackend(rewrites=lambda sid, text: text + ".")  # only a full stop added
+    graph = start(env, backend)
+    drafts = run_status(graph, "run1")["review"]["drafts"]
+    assert all(d["passed"] and not d["fallback"] for d in drafts)
+    assert "JudgeVerdict" not in backend.calls
+
+
+def test_the_pdf_is_built_when_the_review_finishes(env, tmp_path, monkeypatch):
+    from factfit.render.compile import TailoredRender
+
+    built = []
+
+    def fake_render(profile, cv, out_dir, keywords):
+        built.append((out_dir, keywords))
+        return TailoredRender(pages=1, issues=[], warnings=["w"])
+
+    monkeypatch.setattr("factfit.agent.graph.render_tailored", fake_render)
+    graph = start(env, FakeBackend(), output_dir=tmp_path / "out")
+    done = resume(graph, [])
+    assert done["render"] == {"pages": 1, "issues": [], "warnings": ["w"]}
+    assert built == [(tmp_path / "out" / "runs" / "run1", ["YOLOv8"])]
+
+
+def test_a_failed_compile_keeps_the_reviewed_cv(env, tmp_path, monkeypatch):
+    from factfit.render.compile import RenderError
+
+    def broken(*args):
+        raise RenderError("tectonic not found on PATH")
+
+    monkeypatch.setattr("factfit.agent.graph.render_tailored", broken)
+    graph = start(env, FakeBackend(), output_dir=tmp_path / "out")
+    done = resume(graph, [])
+    assert done["status"] == "done" and done["cv"]
+    assert "not found" in done["render"]["error"]

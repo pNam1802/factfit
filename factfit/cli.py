@@ -59,6 +59,8 @@ def main(argv: list[str] | None = None) -> int:
         "not allowed with --cv",
     )
     rd.add_argument("--keywords", default="", help="JD keywords to look for, comma separated")
+    co = commands.add_parser("cost", help="cost of recent tailoring runs, by node and model")
+    co.add_argument("--runs", type=int, default=10, help="how many recent runs (default 10)")
     oa = commands.add_parser("export-openapi", help="write the API schema for the UI types")
     oa.add_argument("path", nargs="?", default="ui/openapi.json")
     cb = commands.add_parser("check-bullet", help="check a rewritten bullet against its sources")
@@ -111,6 +113,8 @@ def main(argv: list[str] | None = None) -> int:
         return _check_bullet(args.source, args.text, args.profile)
     if args.command == "render":
         return _render(args.profile, args.cv, args.out, args.unchecked, args.keywords)
+    if args.command == "cost":
+        return _cost(args.runs)
     if args.command == "export-openapi":
         from factfit.api.app import export_openapi
 
@@ -118,6 +122,64 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Wrote {args.path}. Regenerate UI types with: cd ui && npm run gen:api")
         return 0
     return 2
+
+
+def _cost(limit: int) -> int:
+    from statistics import median
+
+    from sqlmodel import Session
+
+    from factfit.db import init_db, make_engine
+    from factfit.evals.cost import run_costs
+
+    engine = make_engine()
+    init_db(engine)
+    with Session(engine) as session:
+        runs = run_costs(session, limit)
+    if not runs:
+        print("No tailoring runs logged yet.")
+        return 0
+
+    nodes = sorted(
+        {n for r in runs for n in r.calls_by_node}, key=lambda n: (_NODE_ORDER.get(n, 9), n)
+    )
+    print(f"Last {len(runs)} tailoring run(s), newest first. Target: < $0.05 per run.\n")
+    print(
+        f"{'run':10} {'started (UTC)':17} {'calls':>5} {'total':>8}  "
+        + "  ".join(f"{n:>8}" for n in nodes)
+    )
+    for r in runs:
+        cells = "  ".join(f"{r.by_node.get(n, 0):>8.4f}" for n in nodes)
+        flag = "  over" if r.cost >= 0.05 else ""
+        unpriced = f"  ({r.unpriced} unpriced)" if r.unpriced else ""
+        print(
+            f"{r.run_id[:8]:10} {r.started:%Y-%m-%d %H:%M} {r.calls:>5} ${r.cost:>7.4f}  "
+            f"{cells}{flag}{unpriced}"
+        )
+
+    total = sum(r.cost for r in runs) or 1.0
+    print(f"\nmedian ${median(r.cost for r in runs):.4f} per run")
+    print(
+        "share of cost:  "
+        + ", ".join(
+            f"{n} {100 * sum(r.by_node.get(n, 0) for r in runs) / total:.0f}%" for n in nodes
+        )
+    )
+    models: dict[str, float] = {}
+    for r in runs:
+        for m, c in r.by_model.items():
+            models[m] = models.get(m, 0) + c
+    print(
+        "by model:       "
+        + ", ".join(
+            f"{m} {100 * c / total:.0f}%" for m, c in sorted(models.items(), key=lambda x: -x[1])
+        )
+    )
+    print("Parse and match are cached per JD: runs on a JD seen before show $0 for them.")
+    return 0
+
+
+_NODE_ORDER = {"parse_jd": 0, "match": 1, "rewrite": 2, "judge": 3}
 
 
 def _build_grounding_cases() -> int:

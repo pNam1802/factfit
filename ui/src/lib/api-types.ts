@@ -468,6 +468,9 @@ export interface components {
             cv?: {
                 [key: string]: unknown;
             } | null;
+            render?: components["schemas"]["RenderOut"] | null;
+            /** Render Error */
+            render_error?: string | null;
             /** Error */
             error?: string | null;
         };

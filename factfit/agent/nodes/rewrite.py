@@ -4,7 +4,8 @@ Flow for one tailoring run (each step maps to one LangGraph node in step 3e):
 
 1. rewrite_entry   one LLM call per CV entry, one rewritten bullet per source bullet
 2. check_bullet    rules first (numbers, technologies, role); the LLM judge only if the
-                   rules pass, so a failing rewrite never pays for a judge call
+                   rules pass, so a failing rewrite never pays for a judge call. A rewrite
+                   equal to its source sentence is not checked at all
 3. retry           failed bullets are rewritten once, with the problems listed
 4. fallback        still failing: use the source bullet's own text, flagged for review
 
@@ -110,6 +111,15 @@ def rewrite_entry(
         d.text = by_id.get(d.source.id, "")
 
 
+def same_text(a: str, b: str) -> bool:
+    """Equal up to spacing, letter case and a final full stop: such a rewrite adds nothing."""
+
+    def norm(t: str) -> str:
+        return " ".join(t.split()).rstrip(".").casefold()
+
+    return norm(a) == norm(b)
+
+
 def check_draft(
     draft: Draft,
     *,
@@ -123,6 +133,10 @@ def check_draft(
     report everything at once instead of one layer per round trip)."""
     if not draft.text:
         draft.issues, draft.passed = ["the model returned no rewrite for this bullet"], False
+        return
+    if same_text(draft.text, draft.source.text):
+        # The source sentence itself is grounded by definition: no rules, no judge call.
+        draft.issues, draft.passed = [], True
         return
     issues = [i.message for i in check_bullet(draft.text, [draft.source], kb)]
     if use_judge and (all_problems or not issues):

@@ -50,7 +50,7 @@ from factfit.api.schemas import (
 from factfit.db import Company, Job, init_db, make_engine
 from factfit.llm import LLMClient, LLMError, make_client
 from factfit.profile import ProfileError, load_profile, profile_version
-from factfit.render.compile import RenderError, render_and_check
+from factfit.render.compile import RenderError, render_tailored
 from factfit.schemas.job import JobDescription
 from factfit.schemas.profile import Profile
 from factfit.schemas.tailored import TailoredCV
@@ -216,7 +216,10 @@ def create_app(
     def get_graph(client: ClientDep):
         if "graph" not in graphs:
             graphs["graph"] = build_graph(
-                client=client, engine=engine, checkpointer=open_checkpointer(checkpoint_file)
+                client=client,
+                engine=engine,
+                checkpointer=open_checkpointer(checkpoint_file),
+                output_dir=output_root,
             )
         return graphs["graph"]
 
@@ -247,8 +250,14 @@ def create_app(
                 review_errors=review.get("review_errors", {}),
             )  # fmt: skip
         if state == "done":
+            rendered = status.get("render") or {}
             return RunStatusOut(
-                run_id=run_id, status=state, drafts=status["drafts"], cv=status["cv"]
+                run_id=run_id,
+                status=state,
+                drafts=status["drafts"],
+                cv=status["cv"],
+                render=render_out(run_id, rendered) if "pages" in rendered else None,
+                render_error=rendered.get("error"),
             )
         return RunStatusOut(run_id=run_id, status="running")
 
@@ -312,19 +321,22 @@ def create_app(
             "jd", {}
         ).get("keywords", [])
         try:
-            result, ats = render_and_check(profile, cv, out_dir, keywords)
+            out = render_tailored(profile, cv, out_dir, keywords)
         except RenderError as e:
             status = 503 if "not found on PATH" in str(e) else 422
             raise HTTPException(status_code=status, detail=str(e)) from e
-        issues = list(ats.issues)
-        if result.pages != 1:
-            issues.append(f"the CV has {result.pages} pages; a tailored CV must fit on 1 page")
+        rendered = {"pages": out.pages, "issues": out.issues, "warnings": out.warnings}
+        # Record the rebuild in the run, so GET /runs/{id} shows the PDF that is on disk.
+        graph.update_state(run_config(run_id), {"render": rendered}, as_node="render")
+        return render_out(run_id, rendered)
+
+    def render_out(run_id: str, rendered: dict) -> RenderOut:
         return RenderOut(
             run_id=run_id,
-            pages=result.pages,
-            ats_ok=not issues,
-            issues=issues,
-            warnings=ats.warnings,
+            pages=rendered["pages"],
+            ats_ok=not rendered["issues"],
+            issues=rendered["issues"],
+            warnings=rendered["warnings"],
             pdf_url=f"/runs/{run_id}/cv.pdf",
             tex_url=f"/runs/{run_id}/cv.tex",
         )

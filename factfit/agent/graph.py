@@ -4,7 +4,10 @@
                                              |--(failed, no retry left)--> fallback --+
                                              +--(all passed)------------------------> review
     review (pause for the person) -> apply_review --(an edit fails the checks)--> review
-                                                  +--(ok)--> assemble -> END
+                                                  +--(ok)--> assemble -> render -> END
+
+render compiles the PDF and runs the ATS check (only when the graph is given an output
+directory). A compile failure is recorded in the state, not raised: the reviewed CV is kept.
 
 The state holds JSON only (dicts, lists, strings), so the SQLite checkpointer can save it and
 a paused run can be resumed after a restart. Each node rebuilds objects from that JSON and
@@ -18,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
@@ -38,10 +42,12 @@ from factfit.agent.tailor import assemble
 from factfit.db.models import Job
 from factfit.grounding.rules import load_kb
 from factfit.llm import LLMClient
+from factfit.render.compile import RenderError, render_tailored
 from factfit.schemas.base import Strict
 from factfit.schemas.job import JobDescription
 from factfit.schemas.match import MatchResult
 from factfit.schemas.profile import Profile
+from factfit.schemas.tailored import TailoredCV
 
 DEFAULT_CHECKPOINTS = Path("data/checkpoints.db")
 WORKERS = 6  # parallel LLM calls inside the rewrite and check nodes
@@ -60,6 +66,7 @@ class TailorState(TypedDict, total=False):
     decisions: list[dict]  # what the person sent at the last review
     review_errors: dict[str, list[str]]  # source_id -> why an edit was refused
     cv: dict  # TailoredCV, once assembled
+    render: dict  # {pages, issues, warnings} of the compiled PDF, or {error}
 
 
 class ReviewDecision(Strict):
@@ -134,25 +141,34 @@ def _save_drafts(state: TailorState, drafts: list[Draft]) -> list[dict]:
 # --- the graph -------------------------------------------------------------------------------
 
 
-def build_graph(*, client: LLMClient, engine: Engine, checkpointer=None):
+def _run_id(config: RunnableConfig) -> str:
+    """The run id is the checkpoint thread id; LLM calls are logged under it."""
+    return config["configurable"]["thread_id"]
+
+
+def build_graph(
+    *, client: LLMClient, engine: Engine, checkpointer=None, output_dir: Path | None = None
+):
+    """output_dir: where each run's PDF is written (output_dir/runs/<run id>). Without it the
+    graph ends after assemble and the CV is rendered on request."""
     kb = load_kb()
 
-    def parse(state: TailorState) -> dict:
+    def parse(state: TailorState, config: RunnableConfig) -> dict:
         with Session(engine) as session:
             job = session.get(Job, state["job_id"])
             if job is None:
                 raise ValueError(f"job {state['job_id']} not found")
-            result = parse_jd(job.raw_text, client=client, session=session)
+            result = parse_jd(job.raw_text, client=client, session=session, run_id=_run_id(config))
         return {"jd": result.jd.model_dump(mode="json")}
 
-    def match(state: TailorState) -> dict:
+    def match(state: TailorState, config: RunnableConfig) -> dict:
         jd = JobDescription.model_validate(state["jd"])
         level = state.get("level") or (jd.seniority if jd.seniority != "unknown" else None)
         with Session(engine) as session:
             outcome = match_job(
                 session.get(Job, state["job_id"]), _profile(state),
                 profile_version=state["profile_version"], client=client, session=session,
-                level=level,
+                level=level, run_id=_run_id(config),
             )  # fmt: skip
         return {"match": outcome.result.model_dump(mode="json"), "level": level}
 
@@ -176,7 +192,7 @@ def build_graph(*, client: LLMClient, engine: Engine, checkpointer=None):
             "drafts": [_draft_to_dict(d) for d in drafts],
         }
 
-    def rewrite(state: TailorState) -> dict:
+    def rewrite(state: TailorState, config: RunnableConfig) -> dict:
         profile = _profile(state)
         selected = _selected(state, profile)
         drafts = _drafts(state, selected)
@@ -188,21 +204,30 @@ def build_graph(*, client: LLMClient, engine: Engine, checkpointer=None):
             list(
                 pool.map(
                     lambda g: rewrite_entry(
-                        g[0], g[1], jd=jd, match=match_result, client=client, kb=kb
-                    ),
+                        g[0],
+                        g[1],
+                        jd=jd,
+                        match=match_result,
+                        client=client,
+                        kb=kb,
+                        run_id=_run_id(config),
+                    ),  # fmt: skip
                     [g for g in groups if g[1]],
                 )
             )
         return {"drafts": _save_drafts(state, drafts)}
 
-    def check(state: TailorState) -> dict:
+    def check(state: TailorState, config: RunnableConfig) -> dict:
         drafts = _drafts(state, _selected(state, _profile(state)))
         pending = [d for d in drafts if not d.passed]
         use_judge = state.get("use_judge", True)
         with ThreadPoolExecutor(max_workers=WORKERS) as pool:
             list(
                 pool.map(
-                    lambda d: check_draft(d, client=client, kb=kb, use_judge=use_judge), pending
+                    lambda d: check_draft(
+                        d, client=client, kb=kb, use_judge=use_judge, run_id=_run_id(config)
+                    ),
+                    pending,
                 )
             )
         style_problems(drafts, pending, kb)
@@ -238,7 +263,7 @@ def build_graph(*, client: LLMClient, engine: Engine, checkpointer=None):
         )
         return {"decisions": decisions or []}
 
-    def apply_review(state: TailorState) -> dict:
+    def apply_review(state: TailorState, config: RunnableConfig) -> dict:
         decisions = {d.source_id: d for d in map(ReviewDecision.model_validate, state["decisions"])}
         drafts = _drafts(state, _selected(state, _profile(state)))
         flags = {d["source_id"]: d for d in state["drafts"]}
@@ -260,6 +285,7 @@ def build_graph(*, client: LLMClient, engine: Engine, checkpointer=None):
                     client=client,
                     kb=kb,
                     use_judge=state.get("use_judge", True),
+                    run_id=_run_id(config),
                     all_problems=True,
                 )
             # "accept" leaves the draft as it is. Any draft still failing, including an edit
@@ -279,11 +305,25 @@ def build_graph(*, client: LLMClient, engine: Engine, checkpointer=None):
         cv = assemble(selected, drafts, profile, JobDescription.model_validate(state["jd"]), kb)
         return {"cv": cv.model_dump(mode="json")}
 
+    def render(state: TailorState, config: RunnableConfig) -> dict:
+        # The profile copied when the run started: the PDF matches what was reviewed.
+        try:
+            out = render_tailored(
+                _profile(state),
+                TailoredCV.model_validate(state["cv"]),
+                output_dir / "runs" / _run_id(config),
+                state.get("jd", {}).get("keywords", []),
+            )
+        except RenderError as e:
+            return {"render": {"error": str(e)}}
+        return {"render": {"pages": out.pages, "issues": out.issues, "warnings": out.warnings}}
+
     g = StateGraph(TailorState)
     for name, fn in [
         ("parse", parse), ("match", match), ("select", select), ("rewrite", rewrite),
         ("check", check), ("fallback", fallback), ("review", review),
         ("apply_review", apply_review), ("assemble", assemble_node),
+        *([("render", render)] if output_dir else []),
     ]:  # fmt: skip
         g.add_node(name, fn)
     g.add_edge(START, "parse")
@@ -295,7 +335,11 @@ def build_graph(*, client: LLMClient, engine: Engine, checkpointer=None):
     g.add_edge("fallback", "review")
     g.add_edge("review", "apply_review")
     g.add_conditional_edges("apply_review", after_review, ["review", "assemble"])
-    g.add_edge("assemble", END)
+    if output_dir:
+        g.add_edge("assemble", "render")
+        g.add_edge("render", END)
+    else:
+        g.add_edge("assemble", END)
     return g.compile(checkpointer=checkpointer)
 
 
@@ -338,4 +382,9 @@ def run_status(graph, run_id: str) -> dict[str, Any]:
         return {"status": "waiting_review", "review": snapshot.interrupts[0].value}
     if snapshot.next:
         return {"status": "running", "next": list(snapshot.next)}
-    return {"status": "done", "cv": values.get("cv"), "drafts": values.get("drafts", [])}
+    return {
+        "status": "done",
+        "cv": values.get("cv"),
+        "drafts": values.get("drafts", []),
+        "render": values.get("render"),
+    }
