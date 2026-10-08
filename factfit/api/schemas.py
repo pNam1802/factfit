@@ -4,10 +4,12 @@ These are shaped for the UI (e.g. each requirement carries its text and the text
 evidence), while the core schemas in factfit.schemas stay shaped for the agent.
 """
 
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from factfit.db.models import ApplicationStatus
 from factfit.schemas.base import Strict
 from factfit.schemas.job import Category, JobDescription, Seniority
 from factfit.schemas.match import Status
@@ -64,6 +66,8 @@ class MatchOut(BaseModel):
 class ErrorOut(BaseModel):
     detail: str
     issues: list[str] = []
+    # Set when the request can be repeated with a confirmation: "duplicate" or "ats".
+    code: str | None = None
 
 
 # --- tailoring runs ----------------------------------------------------------------------------
@@ -128,3 +132,53 @@ class RunStatusOut(BaseModel):
     render: RenderOut | None = None  # the PDF built when the review finished
     render_error: str | None = None  # why that PDF could not be built
     error: str | None = None
+
+
+# --- applications ------------------------------------------------------------------------------
+
+
+class ApplyFromRun(Strict):
+    """Save the run's reviewed, rendered CV as an application; the CV is frozen."""
+
+    status: Literal["saved", "applied"] = "applied"
+    channel: str | None = None  # company site, LinkedIn, email, referral, ...
+    notes: str = ""
+    confirm_duplicate: bool = False  # save even if this job or company was applied to recently
+    confirm_ats: bool = False  # mark as applied even though the ATS check found problems
+
+
+class ManualApplication(Strict):
+    """An application made without factfit: the manual baseline (PRD §10)."""
+
+    company: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    url: str | None = None
+    jd_text: str | None = None
+    status: ApplicationStatus = ApplicationStatus.applied
+    applied_on: date | None = None  # default: today, unless status is "saved"
+    channel: str | None = None
+    notes: str = ""
+    confirm_duplicate: bool = False
+
+
+class ApplicationUpdate(Strict):
+    status: ApplicationStatus | None = None
+    channel: str | None = None
+    notes: str | None = None
+
+
+class ApplicationOut(BaseModel):
+    id: int
+    job_id: int
+    company: str | None
+    title: str
+    url: str | None
+    status: ApplicationStatus
+    cv_source: str  # "generated" | "manual"
+    cv_version_id: int | None
+    cv_pdf_url: str | None
+    cv_tex_url: str | None
+    channel: str | None
+    notes: str
+    applied_at: datetime | None
+    last_change: datetime

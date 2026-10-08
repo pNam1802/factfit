@@ -97,7 +97,7 @@ def parse_jd(
     job.parse_prompt_version = prompt.id
     company_name = company or jd.company
     if company_name:
-        job.company_id = _get_or_create_company(session, company_name).id
+        job.company_id = get_or_create_company(session, company_name).id
 
     session.add(job)
     session.commit()
@@ -105,7 +105,7 @@ def parse_jd(
     return ParseResult(job=job, jd=jd, cached=False)
 
 
-def _get_or_create_company(session: Session, name: str) -> Company:
+def get_or_create_company(session: Session, name: str) -> Company:
     name = name.strip()
     found = session.exec(select(Company).where(func.lower(Company.name) == name.lower())).first()
     if found:

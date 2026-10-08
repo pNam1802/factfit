@@ -212,10 +212,187 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/runs/{run_id}/application": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply From Run
+         * @description Save a finished run as an application. Its CV is frozen: later rebuilds or profile
+         *     edits do not change what is linked to this application.
+         */
+        post: operations["apply_from_run_runs__run_id__application_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Applications
+         * @description All applications, the most recently changed first.
+         */
+        get: operations["get_applications_applications_get"];
+        put?: never;
+        /**
+         * Add Manual Application
+         * @description Record an application made without factfit (the manual baseline). No LLM call.
+         */
+        post: operations["add_manual_application_applications_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Application
+         * @description Change the status (recorded as an event), the channel or the notes.
+         */
+        patch: operations["update_application_applications__application_id__patch"];
+        trace?: never;
+    };
+    "/cv-versions/{version_id}/cv.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Version Pdf
+         * @description The PDF exactly as it was when the application was saved.
+         */
+        get: operations["version_pdf_cv_versions__version_id__cv_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cv-versions/{version_id}/cv.tex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Version Tex */
+        get: operations["version_tex_cv_versions__version_id__cv_tex_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ApplicationOut */
+        ApplicationOut: {
+            /** Id */
+            id: number;
+            /** Job Id */
+            job_id: number;
+            /** Company */
+            company: string | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string | null;
+            status: components["schemas"]["ApplicationStatus"];
+            /** Cv Source */
+            cv_source: string;
+            /** Cv Version Id */
+            cv_version_id: number | null;
+            /** Cv Pdf Url */
+            cv_pdf_url: string | null;
+            /** Cv Tex Url */
+            cv_tex_url: string | null;
+            /** Channel */
+            channel: string | null;
+            /** Notes */
+            notes: string;
+            /** Applied At */
+            applied_at: string | null;
+            /**
+             * Last Change
+             * Format: date-time
+             */
+            last_change: string;
+        };
+        /**
+         * ApplicationStatus
+         * @enum {string}
+         */
+        ApplicationStatus: "saved" | "applied" | "screening" | "interview" | "offer" | "rejected" | "ghosted";
+        /** ApplicationUpdate */
+        ApplicationUpdate: {
+            status?: components["schemas"]["ApplicationStatus"] | null;
+            /** Channel */
+            channel?: string | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
+         * ApplyFromRun
+         * @description Save the run's reviewed, rendered CV as an application; the CV is frozen.
+         */
+        ApplyFromRun: {
+            /**
+             * Status
+             * @default applied
+             * @enum {string}
+             */
+            status: "saved" | "applied";
+            /** Channel */
+            channel?: string | null;
+            /**
+             * Notes
+             * @default
+             */
+            notes: string;
+            /**
+             * Confirm Duplicate
+             * @default false
+             */
+            confirm_duplicate: boolean;
+            /**
+             * Confirm Ats
+             * @default false
+             */
+            confirm_ats: boolean;
+        };
         /** CreateJob */
         CreateJob: {
             /**
@@ -268,6 +445,8 @@ export interface components {
              * @default []
              */
             issues: string[];
+            /** Code */
+            code?: string | null;
         };
         /** Evidence */
         Evidence: {
@@ -321,6 +500,36 @@ export interface components {
             /** Cached */
             cached: boolean;
             jd: components["schemas"]["JobDescription"];
+        };
+        /**
+         * ManualApplication
+         * @description An application made without factfit: the manual baseline (PRD §10).
+         */
+        ManualApplication: {
+            /** Company */
+            company: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url?: string | null;
+            /** Jd Text */
+            jd_text?: string | null;
+            /** @default applied */
+            status: components["schemas"]["ApplicationStatus"];
+            /** Applied On */
+            applied_on?: string | null;
+            /** Channel */
+            channel?: string | null;
+            /**
+             * Notes
+             * @default
+             */
+            notes: string;
+            /**
+             * Confirm Duplicate
+             * @default false
+             */
+            confirm_duplicate: boolean;
         };
         /** MatchOut */
         MatchOut: {
@@ -912,6 +1121,225 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_from_run_runs__run_id__application_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyFromRun"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_applications_applications_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["ApplicationStatus"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_manual_application_applications_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualApplication"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_application_applications__application_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                application_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    version_pdf_cv_versions__version_id__cv_pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    version_tex_cv_versions__version_id__cv_tex_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
