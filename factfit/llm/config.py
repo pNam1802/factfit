@@ -23,6 +23,7 @@ class NodeSettings(Strict):
 
 
 class LLMConfig(Strict):
+    provider: Literal["openai", "deepseek"] = "openai"  # who serves the models below
     models: dict[str, str]
     nodes: dict[str, NodeSettings]
     pricing: dict[str, Price] = {}

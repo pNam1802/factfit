@@ -2,7 +2,7 @@
 
 > LangGraph agent that tailors LaTeX CVs to job descriptions — every bullet traced to a verified profile, with a 3-layer hallucination check.
 
-**Status:** 🚧 Work in progress (week 3 of 6 done). Metrics, demo, and setup instructions will land here once the MVP runs end-to-end.
+**Status:** 🚧 Work in progress (week 4 of 6 done). Metrics, demo, and setup instructions will land here once the MVP runs end-to-end.
 
 ## Why
 
@@ -24,7 +24,7 @@ Tailoring a CV for each job takes 30–60 minutes by hand. Generic chatbots are 
 
 ## Planned stack
 
-Python · LangGraph · FastAPI · Pydantic · SQLite · OpenAI API · Jinja2 + tectonic · Next.js + shadcn/ui
+Python · LangGraph · FastAPI · Pydantic · SQLite · DeepSeek or OpenAI API · Jinja2 + tectonic · Next.js + shadcn/ui
 
 ## Development
 
@@ -38,7 +38,7 @@ uv run pytest                             # run tests
 cp data/profile.example.yaml data/profile.yaml   # your real profile (gitignored)
 uv run factfit validate-profile           # check it: unique ids, skill evidence, numbers backed by metrics
 
-cp .env.example .env                      # add your OPENAI_API_KEY
+cp .env.example .env                      # add DEEPSEEK_API_KEY (or OPENAI_API_KEY)
 uv run factfit llm-check                  # one tiny request: checks key, model, cost logging
 
 uv run factfit dev                        # web UI on :3000 + API on :8000 (needs Node.js)
@@ -56,7 +56,7 @@ PDFs are built with [tectonic](https://tectonic-typesetting.github.io), a single
 
 Try it before your own profile validates by setting `FACTFIT_PROFILE=data/profile.example.yaml` in `.env`.
 
-Models per agent step and their prices live in [`config/llm.yaml`](config/llm.yaml). Every LLM call (tokens, cost, latency, errors) is logged to the `llm_calls` table in `data/factfit.db`.
+The provider (`deepseek` or `openai`), the model per agent step and the prices live in [`config/llm.yaml`](config/llm.yaml). DeepSeek has no Structured Outputs, so its backend puts the JSON Schema in the prompt and relies on validation and retries ([ADR 0006](docs/adr/0006-deepseek.md)). Every LLM call (tokens, cost, latency, errors) is logged to the `llm_calls` table in `data/factfit.db`.
 
 Set `FACTFIT_LLM_MODE=mock` to answer from saved fixtures in `evals/fixtures/` with no API key, or `record` to save real answers as fixtures. Only record with `profile.example.yaml`, since fixtures are committed.
 

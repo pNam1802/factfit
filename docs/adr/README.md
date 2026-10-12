@@ -9,4 +9,5 @@ and what it costs. New decisions copy [0000-template.md](0000-template.md).
 | [0002](0002-sqlite.md) | Store app data in SQLite through SQLModel | accepted |
 | [0003](0003-grounding-code-first.md) | Check grounding with code first, then an LLM judge | accepted |
 | [0004](0004-nextjs-ui.md) | Build the UI with Next.js and shadcn/ui, not Streamlit | accepted |
-| [0005](0005-openai.md) | Use the OpenAI API with Structured Outputs behind our own LLMClient | accepted |
+| [0005](0005-openai.md) | Use the OpenAI API with Structured Outputs behind our own LLMClient | provider superseded by 0006 |
+| [0006](0006-deepseek.md) | Switch the default provider to DeepSeek, keep OpenAI as an option | accepted |

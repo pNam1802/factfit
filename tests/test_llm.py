@@ -6,12 +6,15 @@ import pytest
 from factfit.db.models import LLMCall
 from factfit.llm import LLMClient, LLMError
 from factfit.llm.backends import (
+    DeepSeekBackend,
     MockBackend,
     OpenAIBackend,
     RawOutput,
     RecordingBackend,
     TransientLLMError,
+    deepseek_options,
 )
+from factfit.llm.client import make_client
 from factfit.llm.config import LLMConfig
 from factfit.schemas.job import JobDescription
 
@@ -166,3 +169,54 @@ def test_openai_backend_sends_a_strict_schema():
     assert fmt["schema"]["additionalProperties"] is False
     assert sent["instructions"] == "sys" and sent["input"] == "u"
     assert (raw.tokens_in, raw.tokens_out) == (10, 5)
+
+
+def test_deepseek_backend_puts_the_schema_in_the_prompt_and_asks_for_json():
+    sent = {}
+
+    def create(**kwargs):
+        sent.update(kwargs)
+        usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5)
+        message = SimpleNamespace(content=VALID_JD)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=usage)
+
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    raw = DeepSeekBackend(client=fake_client).complete(
+        node="parse_jd",
+        model="m",
+        system="sys",
+        user="u",
+        schema=JobDescription,
+        options={"reasoning": {"effort": "low"}},
+    )
+    system, user = sent["messages"]
+    assert system["role"] == "system" and system["content"].startswith("sys")
+    assert "JSON Schema" in system["content"] and '"must_have"' in system["content"]
+    assert user == {"role": "user", "content": "u"}
+    assert sent["response_format"] == {"type": "json_object"}
+    assert sent["reasoning_effort"] == "low"
+    assert (raw.text, raw.tokens_in, raw.tokens_out) == (VALID_JD, 10, 5)
+
+
+def test_deepseek_options_turn_thinking_off_for_minimal_effort():
+    assert deepseek_options({}) == {}
+    assert deepseek_options({"reasoning": {"effort": "high"}}) == {"reasoning_effort": "high"}
+    assert deepseek_options({"reasoning": {"effort": "minimal"}}) == {
+        "extra_body": {"thinking": {"type": "disabled"}}
+    }
+
+
+def test_live_mode_uses_the_provider_from_config_and_its_key(tmp_path, monkeypatch):
+    config = tmp_path / "llm.yaml"
+    config.write_text(
+        "provider: deepseek\nmodels: {small: m}\nnodes: {parse_jd: {model: small}}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("factfit.llm.client.load_dotenv", lambda: None)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    with pytest.raises(LLMError, match="DEEPSEEK_API_KEY"):
+        make_client(mode="live", config_path=config)
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    for mode in ("live", "deepseek", "openai"):  # old provider-named modes still mean live
+        assert isinstance(make_client(mode=mode, config_path=config).backend, DeepSeekBackend)

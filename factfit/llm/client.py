@@ -25,6 +25,7 @@ from sqlmodel import Session
 from factfit.db.models import LLMCall
 from factfit.llm.backends import (
     Backend,
+    DeepSeekBackend,
     MockBackend,
     OpenAIBackend,
     RecordingBackend,
@@ -140,6 +141,12 @@ def db_logger(engine: Engine) -> Logger:
     return log
 
 
+# Older .env files named the provider as the mode; the provider now lives in config/llm.yaml.
+LIVE_ALIASES = ("openai", "deepseek")
+
+KEY_VARS = {"openai": "OPENAI_API_KEY", "deepseek": "DEEPSEEK_API_KEY"}
+
+
 def make_client(
     mode: str | None = None,
     config_path: str | Path = DEFAULT_CONFIG,
@@ -147,24 +154,35 @@ def make_client(
 ) -> LLMClient:
     """Build a client from config/llm.yaml and .env.
 
-    mode (or env FACTFIT_LLM_MODE): "openai" (default), "mock" or "record".
+    mode (or env FACTFIT_LLM_MODE): "live" (default), "mock" or "record".
+    "live" and "record" call the `provider` set in config/llm.yaml.
     """
     load_dotenv()
-    mode = mode or os.environ.get("FACTFIT_LLM_MODE", "openai")
+    mode = mode or os.environ.get("FACTFIT_LLM_MODE") or "live"
+    if mode in LIVE_ALIASES:
+        mode = "live"
     config = load_llm_config(config_path)
 
     if mode == "mock":
         backend: Backend = MockBackend()
-    elif mode in ("openai", "record"):
-        if not os.environ.get("OPENAI_API_KEY"):
-            raise LLMError(
-                "OPENAI_API_KEY is not set. Copy .env.example to .env and add your key, "
-                "or use FACTFIT_LLM_MODE=mock."
-            )
-        backend = OpenAIBackend(timeout_s=config.timeout_s)
+    elif mode in ("live", "record"):
+        backend = _live_backend(config)
         if mode == "record":
             backend = RecordingBackend(backend)
     else:
-        raise LLMError(f"unknown FACTFIT_LLM_MODE '{mode}': use openai, mock or record")
+        raise LLMError(f"unknown FACTFIT_LLM_MODE '{mode}': use live, mock or record")
 
     return LLMClient(backend, config, log=db_logger(engine) if engine else None)
+
+
+def _live_backend(config: LLMConfig) -> Backend:
+    key_var = KEY_VARS[config.provider]
+    key = os.environ.get(key_var)
+    if not key:
+        raise LLMError(
+            f"{key_var} is not set (provider '{config.provider}' in config/llm.yaml). "
+            "Copy .env.example to .env and add your key, or use FACTFIT_LLM_MODE=mock."
+        )
+    if config.provider == "deepseek":
+        return DeepSeekBackend(timeout_s=config.timeout_s, api_key=key)
+    return OpenAIBackend(timeout_s=config.timeout_s)
