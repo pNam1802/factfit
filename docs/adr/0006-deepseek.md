@@ -42,13 +42,26 @@ turns thinking off; other efforts are passed through.
 \* priced at peak, cache-miss rates, so an upper bound. The alignment judge of the eval also
 moved to `deepseek-flash`, so the two rows are not measured by the same judge.
 
+`factfit eval-grounding`, judge prompt v2, 272 cases
+([RESULTS.md](../../evals/grounding/RESULTS.md)):
+
+| Judge | Recall, fabricated | False alarms (judge / rules+judge) | $ per 1k bullets | Median latency |
+| --- | --- | --- | --- | --- |
+| gpt-5-mini / low (2026-10-05) | 100% | 0% / 1% | 0.56 | 3.3 s |
+| deepseek-flash / low | 100% | 1% / 2% | 0.49* | 1.4 s |
+| deepseek-flash / minimal (thinking off) | 100% | 0% / 1% | 0.27* | 0.9 s |
+
+The judge default is now `deepseek-flash` with thinking off: same recall and false alarms as
+before, half the cost, a third of the latency. Every judge in the table reaches 100% recall, so
+the set no longer separates judges; harder cases are needed before claiming one is better.
+
 ## Consequences
 
 - No node, prompt or schema changed; only the backend and config did, as 0005 expected.
 - Schema adherence is now enforced by validation and retries, not by the API: watch the
   `fail` and retry counts in evals and in `llm_calls`.
 - Prompts and efforts were tuned on gpt-5 / gpt-5-mini. Parse recall already dropped
-  (96% -> 87%); the grounding judge must be re-measured with `factfit eval-grounding` before
-  its results are trusted, since it is the layer that stops invented claims.
+  (96% -> 87%). The grounding judge was re-measured (above) and holds; the rewrite step has
+  not been re-measured on DeepSeek yet (`factfit eval-rewrite`).
 - Profile and JD text now go to DeepSeek's servers instead of OpenAI's.
 - Switching back is one line (`provider: openai` plus the old model names).
